@@ -1,0 +1,15 @@
+author = Artur Tarassow
+email = atecon@posteo.de
+version = 0.1
+date = 2024-05-21
+description = KNN regression and classification estimator
+tags = C13 C52
+min-version = 2024a
+public = knn_fit knn_predict knn_scores knn_summary
+help = knn_help.md
+sample-script = knn_sample.inp
+depends = extra FEP
+#gui-main = knnGUI
+#menu-only = knnGUI
+#label = knn
+#menu-attachment = MAINWIN/View

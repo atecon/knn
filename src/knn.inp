@@ -1,0 +1,457 @@
+function bundle set_bundle_and_get_defaults (const list xlist,
+                                             bundle opts[null])
+    /* Compile self bundle by merging eventual information
+    from 'opts' bundle. */
+
+    if !exists(opts)
+        bundle opts = defbundle()
+    endif
+
+    bundle self = default_values()
+    self = opts + self          # override defaults
+
+    return self
+end function
+
+
+function bundle default_values (void)
+    /*
+    * This function creates a bundle with default values for the k-nearest neighbors
+    * (knn) algorithm.
+    *
+    * Returns:
+    *   A bundle containing the default values for the knn algorithm.
+    */
+
+    bundle self = defbundle()
+    scalar self.stdize_features = TRUE
+    scalar self.error = FALSE
+    string self.distance_type = "euclidean"
+    string self.class_prediction = "majority"
+    scalar self.nobs = $nobs
+    scalar self.sample_t1 = $t1
+    scalar self.sample_t2 = $t2
+
+    return self
+end function
+
+
+
+function matrix compute_distances (const matrix features)
+    /*
+        Calculates the pairwise distances between the given features.
+
+        Parameters:
+            features: A matrix containing the features in columns and records in rows.
+
+        Returns:
+            D: A matrix containing the pairwise distances between the features.
+            The rows refer to the i-th feature and the columns to the distances
+            to the j-th feature. The diagonal contains the distances to itself is
+            zero by definition.
+    */
+    matrix out = distance(features)
+    matrix D = unvech(out, 0)
+
+    return D
+end function
+
+
+function bundle knn_fit (const series y "Target",
+                         const list xlist "Features",
+                         const int n_neighbors[1::5] "No. of neighbors",
+                         bundle opts[null] "Parameter bundle")
+    /* Function for computing KNN: run the setup and train the model. */
+
+
+    if !exists(opts)
+        bundle opts = defbundle()
+    endif
+
+    list L = y xlist
+    errorif(sum(missing(L)), "Some  have missing values. Please drop these first.")
+    errorif($nobs <= n_neighbors, "Number of rows must exceed number of neighbors.")
+
+    bundle self = set_bundle_and_get_defaults(xlist, opts)
+    self.distance_type = tolower(self.distance_type)
+    scalar self.n_neighbors = n_neighbors
+    string self.depvar = argname(y)
+    strings self.parnames = varnames(xlist)
+    string self.type = getinfo(y).discrete == TRUE ? "classification" : "regression"
+    matrix self.features = prepare_features(xlist, self.stdize_features)
+    matrix self.target = {y}
+
+    matrix distances = compute_distances(self.features)
+    # Compute the indices for each observation which are the closest to it
+    matrix indices_of_closest = indices_of_closest(distances, self.n_neighbors)
+    # Compute the predictions for the target using data on the closest neighbors
+    if self.type == "regression"
+        matrix self.yhat = compute_yhat_regression(self.target, indices_of_closest)
+    else
+        matrix self.yhat = compute_yhat_classification(self.target,
+                                                       indices_of_closest,
+                                                       self.class_prediction)
+    endif
+
+    matrix self.uhat = self.target - self.yhat
+
+    if self.type == "regression"
+        # TODO: also valid for classification?
+        scalar self.rsq = get_rsq(self.target, self.yhat)
+        scalar self.ess = sst(self.uhat)
+    endif
+
+    return self
+end function
+
+
+function void knn_summary (const bundle self)
+    /* Print a summary of the KNN model. */
+
+    printf "\nK-Nearest Neighbors Model Summary\n"
+    printf "----------------------------------\n"
+    printf "Type:                    %s\n", self.type
+    printf "Number of neighbors:     %d\n", self.n_neighbors
+    printf "Distance type:           %s\n", self.distance_type
+    printf "Standardize features:    %s\n", self.stdize_features ? "Yes" : "No"
+    printf "Target variable:         %s\n", self.depvar
+    printf "Feature variables:       %s\n", flatten(self.parnames, ", ")
+    printf "Number of observations:  %d\n", self.nobs
+    printf "Sample period:           %d to %d\n", self.sample_t1, self.sample_t2
+
+    if self.type == "regression"
+        printf "R-squared:               %.4f\n", self.rsq
+        printf "Sum of squares:          %.4f\n", self.ess
+    endif
+    printf "----------------------------------\n"
+end function
+
+
+function matrix knn_predict (const bundle self,
+                             const numeric X)
+    /*
+        This function performs k-nearest neighbors prediction on new data points.
+
+        Parameters:
+            - self: The bundle containing the training data and model parameters.
+            - X: The new data points to be predicted.
+
+        Returns:
+            - prediction: The predicted values for the new data points.
+
+        Notes:
+            - The function checks if the number of columns in the new data points matches the number of columns in the training data.
+            - The function prepares the new data points by standardizing the features if required.
+            - The function computes the distances between the new data points and the training data.
+            - The function selects the closest neighbors for each new data point.
+            - The function computes the predicted values based on the type of problem (regression or classification).
+    */
+
+    if typename(X) == "series" || typename(X) == "list"
+        matrix new_data = {X}
+    else
+        matrix new_data = X
+    endif
+
+    errorif(cols(new_data) != cols(self.features),
+            "The number of columns in the new data points does not match the number of columns in the training data.")
+    scalar nX = rows(new_data)
+    matrix new_data = prepare_features(new_data, self.stdize_features)
+    matrix new_data |= self.features
+
+    matrix distances = compute_distances(new_data)
+    # Remove the initial nX columns which are the distances to themselves
+    # Keep only the initial nX rows which are the distances for the nX testdata records
+    distances = distances[1:nX,-seq(1,nX)]
+
+    # Compute the indices for each observation which are the closest to it
+    matrix indices_of_closest = indices_of_closest(distances, self.n_neighbors)
+
+    # Compute the predictions for the target using data on the closest neighbors
+    if self.type == "regression"
+        matrix prediction = compute_yhat_regression(self.target, indices_of_closest)
+    else
+        matrix prediction = compute_yhat_classification(self.target,
+                                                             indices_of_closest,
+                                                             self.class_prediction)
+    endif
+
+    return prediction
+end function
+
+
+
+function matrix knn_scores (const numeric actual,
+                            const numeric pred,
+                            const bundle self)
+    /*
+    Calculates the evaluation statistics for the k-nearest neighbors (kNN) algorithm.
+
+    Parameters:
+        actual (numeric): The actual target variable values. Can be a series or a column vector.
+        pred (numeric): The predicted target variable values. Can be a series or a column vector.
+        self (bundle): A bundle containing additional information about the algorithm.
+
+    Returns:
+        fcstats (matrix): The forecast statistics matrix.
+
+    Notes:
+        - The target variable must be either a series or a column vector.
+        - The prediction variable must be either a series or a column vector.
+        - The bundle 'self' must contain the following properties:
+            - type (string): The type of the algorithm ('regression' or 'classification').
+            - class_prediction (string): The method used for class prediction in case of classification ('majority' or 'probability').
+    */
+
+    if typename(actual) == "list" || typename(pred) == "list"
+        errorif(TRUE, "The actual and prediction variable must be either a series or a column vector.")
+    endif
+
+    if typename(actual) == "series"
+        matrix target = {actual}
+    else
+        matrix target = actual
+    endif
+
+    if typename(pred) == "series"
+        matrix prediction = {pred}
+    else
+        matrix prediction = pred
+    endif
+
+    if self.type == "regression"
+        matrix fcstats = fcstats(target, prediction)
+    elif self.type == "classification"
+        if self.class_prediction == "majority"
+            matrix fcstats = fcstats_majority(target, prediction)
+        elif self.class_prediction == "probability"
+            matrix fcstats = fcstats_probability(target, prediction)
+        endif
+    endif
+
+    return fcstats
+end function
+
+
+
+function matrix fcstats_majority (const matrix actual,
+                                  const matrix prediction)
+    /**
+    * Compute evaluation statistics for binary integer outcomes using the majority rule.
+    *
+    * actual: The matrix of true actual values.
+    * prediction: The matrix of predicted values.
+    * return: The matrix of evaluation statistics, including false rate, hit rate, and Kuipers score.
+    */
+
+    bundle B = _(yup = actual, fcup = prediction)
+    doKS(&B)
+    matrix fcstats = B.KSfalse | B.KShit | B.KSstat
+    rnameset(fcstats, defarray("false-rate", "hit-rate", "Kuipers-score"))
+
+    # TODO: Results do not coincide. Check which function returns wrong values.
+    #matrix scores = scores2x2(actual ~ prediction, FALSE)
+
+    return fcstats
+end function
+
+function matrix fcstats_probability (const matrix actual,
+                                     const matrix prediction)
+    /*
+    * This function computes evaluation statistics for binary classification models.
+    *
+    * Parameters:
+    * - actual: A matrix containing the actual class labels.
+    * - prediction: A matrix containing the predicted probabilities for each class.
+    *
+    * Returns:
+    * - fcstats: A matrix containing the evaluation statistics (computed by the "FEP" package).
+    *   - If the number of unique values in 'actual' is 2, the column vector
+    *     contains the following statistics:
+    *     - Quadratic probability score (QPS)
+    *     - Logarithmic probability score (LPS)
+    *   - If the number of unique values in 'actual' is not 2, a warning message is printed and an empty matrix is returned.
+    */
+
+    if nelem(values(actual)) == 2
+        matrix fcstats = probscore(actual, prediction)
+        strings label = cnameget(fcstats)
+        fcstats = fcstats'
+        rnameset(fcstats, label)
+    else
+        printf "\nWARNING: No support for statistics for more than three class outcomes.\n\n"
+        matrix fcstats = {}
+    endif
+
+    return fcstats
+end function
+
+
+function matrix prepare_features (const numeric xlist,
+                                  const bool stdize_features)
+    /*
+    * This function prepares the features matrix for k-nearest neighbors (KNN) algorithm.
+    *
+    * Parameters:
+    *   - xlist: A numeric series or matrix containing the features.
+    *   - stdize_features: A boolean indicating whether to standardize the features.
+    *
+    * Returns:
+    *   - A matrix containing the prepared features.
+    */
+
+    if typename(xlist) == "series" || typename(xlist) == "list"
+        matrix features = {xlist}
+    else
+        matrix features = xlist
+    endif
+
+    if stdize_features
+        matrix features = stdize(features, 0, TRUE)
+    endif
+
+    return features
+end function
+
+
+function scalar get_rsq (const matrix target, const matrix yhat)
+    /*
+    * Calculates the R-squared value between the target and predicted values.
+    *
+    * target: The matrix of target values.
+    * yhat: The matrix of predicted values.
+    * return: The R-squared value.
+    */
+    scalar rsq = mcorr(target~yhat)[1,2]^2
+    return rsq
+end function
+
+
+function matrix compute_yhat_regression (const matrix target,
+                                         const matrix indices_of_closest)
+    /*
+    * Compute the predicted values (yhat) based on the target matrix and
+    * the indices of the closest neighbors for regressions.
+    *
+    * target: The target matrix containing the true values.
+    * indices_of_closest: The matrix containing the indices of the closest neighbors.
+    *
+    * return: The matrix containing the predicted values (yhat).
+    */
+
+    matrix yhat = target_means(target, indices_of_closest)
+    return yhat
+end function
+
+
+function matrix compute_yhat_classification (const matrix target,
+                                             const matrix indices_of_closest,
+                                             const string class_prediction)
+    /*
+    * Compute the predicted values (yhat) based on the target matrix and
+    * the indices of the closest neighbors for classification.
+    *
+    * target: The target matrix containing the true values.
+    * indices_of_closest: The matrix containing the indices of the closest neighbors.
+    *
+    * return: The matrix containing the predicted values (yhat).
+    */
+
+    matrix yhat = target_class(target, indices_of_closest, class_prediction)
+
+    return yhat
+end function
+
+
+function matrix target_means (const matrix target,
+                              const matrix indices_of_closest)
+    /*
+    * Calculates the mean values of the target variable for each observation
+    * based on the indices of the closest neighbors.
+    *
+    * target: The matrix containing the target variable values.
+    * indices_of_closest: The matrix containing the indices of the closest
+      neighbors for each observation.
+
+    * return: The matrix of mean values of the target variable for each observation.
+    */
+
+    scalar N = $nobs
+    matrix yhat = mshape(NA, N, 1)
+
+    loop i = 1..N
+        matrix idx = indices_of_closest[,i]
+        matrix yhat[i] = mean(target[idx])
+    endloop
+
+    return yhat
+end function
+
+
+function matrix target_class (const matrix target,
+                              const matrix indices_of_closest,
+                              const string class_prediction)
+    /*
+    * This function calculates either the mode or conditional probability of the target
+    * variable for each observation based on the indices of the closest neighbors.
+    *
+    * Parameters:
+    * - target: A matrix containing the target variable values for all observations.
+    * - indices_of_closest: A matrix containing the indices of the closest
+    *   neighbors for each observation.
+    * - class_prediction: Type of prediction; either `majority` or `probability`.
+    *
+    * Returns:
+    * - yhat: A matrix containing either the mode or conditional probability of
+    *   the target variable for each observation.
+    */
+
+    scalar N = $nobs
+    matrix yhat = mshape(NA, N, 1)
+    scalar information = class_prediction == "majority" ? 1 : 2
+
+    loop i = 1..N
+        matrix idx = indices_of_closest[,i]
+        matrix value = onemode(target[idx])[information]
+
+        if ok(value)
+            matrix yhat[i] = value
+        else
+            printf "WARNING: Could not compute prediction for observation %d. Ignore.\n", $i
+        endif
+    endloop
+
+    return yhat
+end function
+
+
+function matrix indices_of_closest (const matrix distances, const int n_neighbors)
+    /*
+    This function calculates the indices of the closest neighbors based on the given distances.
+
+    Parameters:
+        - distances: matrix, the distances between observations.
+        - n_neighbors: int, the number of closest neighbors to consider.
+
+    Returns:
+        - idx: matrix, the indices of the closest neighbors (in rows) for each
+          observation (in columns). The rows equal the number of neighbors.
+    */
+
+    scalar N = rows(distances)
+    matrix indices_of_closest = mshape(NA, n_neighbors, N)
+    matrix idx = seq(1, cols(distances))'
+
+    # TODO: Check whether this can be improved in terms of computation
+    # TODO: In principle this may be parallelized but not in this version
+
+    loop i = 1..N
+        matrix row = distances[i,]' ~ idx
+        # sort by distance in ascending order
+        matrix sorted = msortby(row, 1)[-i,]  # remove reference observation
+        matrix indices_of_closest[,i] = sorted[1:n_neighbors, 2]
+    endloop
+
+    return indices_of_closest
+end function
+
