@@ -27,8 +27,10 @@ function bundle default_values (void)
     scalar self.stdize_features = TRUE
     string self.distance_type = "euclidean"
     string self.class_prediction = "majority"
-    scalar self.kfold_sampling = 0
-    scalar self.stratified_sampling = FALSE
+    string self.splitters = "none"  # "stratified_kfold", "tscv", "loo"
+    scalar self.kfold_nsplits = 5   # number of folds for kfold-splitters
+    string self.scoring_regression = "rmse"
+    string self.scoring_classification = "accuracy"
     scalar self.nobs = $nobs
     scalar self.sample_t1 = $t1
     scalar self.sample_t2 = $t2
@@ -38,12 +40,14 @@ end function
 
 
 
-function matrix compute_distances (const matrix features)
+function matrix compute_distances (const matrix features,
+                                   const string distance_type)
     /*
         Calculates the pairwise distances between the given features.
 
         Parameters:
             features: A matrix containing the features in columns and records in rows.
+            distance_type: string name of distance type
 
         Returns:
             D: A matrix containing the pairwise distances between the features.
@@ -51,7 +55,7 @@ function matrix compute_distances (const matrix features)
             to the j-th feature. The diagonal contains the distances to itself is
             zero by definition.
     */
-    matrix out = distance(features)
+    matrix out = distance(features, distance_type)
     matrix D = unvech(out, 0)
 
     return D
@@ -78,31 +82,88 @@ function bundle knn_fit (const series y "Target",
     string self.depvar = argname(y)
     strings self.parnames = varnames(xlist)
     string self.type = getinfo(y).discrete == TRUE ? "classification" : "regression"
-    matrix self.features = prepare_features({xlist}, self.stdize_features)
-    matrix self.target = {y}
+    matrix target = {y}
+    matrix mX = {xlist}
 
-    matrix distances = compute_distances(self.features)
+
+    if self.splitters == "none"
+        knn_compute(target, mX, &self)
+        matrix self.uhat = self.target - self.yhat
+        if self.type == "regression"
+            # TODO: also valid for classification?
+            scalar self.rsq = get_rsq(self.target, self.yhat)
+            scalar self.ess = sst(self.uhat)
+        endif
+    else
+        matrix self.features = mX
+        knnCV(target, mX, &self)
+    endif
+
+
+    return self
+end function
+
+
+function void knn_compute (const matrix target, const matrix features, bundle *self)
+    /* Do the actual computation. */
+
+    matrix self.target = target
+    matrix self.features = prepare_features(features, self.stdize_features)
+    matrix distances = compute_distances(self.features, self.distance_type)
     # Compute the indices for each observation which are the closest to it
     matrix indices_of_closest = indices_of_closest(distances, self.n_neighbors)
     # Compute the predictions for the target using data on the closest neighbors
     if self.type == "regression"
-        matrix self.yhat = compute_yhat_regression(self.target, indices_of_closest)
-    else
-        matrix self.yhat = compute_yhat_classification(self.target,
+        matrix self.yhat = compute_yhat_regression(target, indices_of_closest)
+    elif self.type == "classification"
+        matrix self.yhat = compute_yhat_classification(target,
                                                        indices_of_closest,
                                                        self.class_prediction)
+    else
+        errorif(TRUE, "unknown estimation class")
     endif
-
-    matrix self.uhat = self.target - self.yhat
-
-    if self.type == "regression"
-        # TODO: also valid for classification?
-        scalar self.rsq = get_rsq(self.target, self.yhat)
-        scalar self.ess = sst(self.uhat)
-    endif
-
-    return self
 end function
+
+
+function void knnCV (const matrix target, const matrix features, bundle *self)
+    # Function for cross-validation of KNN model.
+
+    # Preparations for CvDataSplitter
+    bundle DataCV = null
+    matrix DataCV.X = target ~ features
+    matrix DataCV.index = seq(1, rows(DataCV.X))'
+    scalar DataCV.n_folds = self.kfold_nsplits
+    string DataCV.cv_type = self.splitters
+    # Retrive the training and validation data
+    CvDataSplitter(&DataCV)
+    scalar n_trainsets = nelem(DataCV.X_train)
+
+    # Estimate the model for each training set
+    matrix Scores = {}
+    strings clabels = array(n_trainsets)
+    loop tset=1..n_trainsets
+        bundle model = _(stdize_features = self.stdize_features,
+                         type = self.type,
+                         class_prediction = self.class_prediction,
+                         n_neighbors = self.n_neighbors,
+                         distance_type = self.distance_type)
+        matrix y_train = DataCV.X_train[tset][,2]  # 1st column refers to index
+        matrix X_train = DataCV.X_train[tset][,3:]
+        matrix y_test = DataCV.X_test[tset][,2] # 1st column refers to index
+        matrix X_test = DataCV.X_test[tset][,3:]
+
+        knn_compute(y_train, X_train, &model)  # in principle, we do not need the in-sample predictions here
+        matrix forecast = knn_predict(model, X_test)  # outforecast using the validation set
+
+        matrix Scores ~= knn_scores(y_test, forecast, model)
+        clabels[tset] = sprintf("fold=%d", tset)
+    endloop
+    cnameset(Scores, clabels)
+    self.Scores = Scores
+end function
+
+
+
 
 
 function void knn_summary (const bundle self)
@@ -158,12 +219,10 @@ function matrix knn_predict (const bundle self,
     scalar nX = rows(new_data)
     matrix new_data = prepare_features(new_data, self.stdize_features)
     matrix new_data |= self.features
-
-    matrix distances = compute_distances(new_data)
+    matrix distances = compute_distances(new_data, self.distance_type)
     # Remove the initial nX columns which are the distances to themselves
     # Keep only the initial nX rows which are the distances for the nX testdata records
     distances = distances[1:nX,-seq(1,nX)]
-
     # Compute the indices for each observation which are the closest to it
     matrix indices_of_closest = indices_of_closest(distances, self.n_neighbors)
 
@@ -227,6 +286,8 @@ function matrix knn_scores (const numeric actual,
         elif self.class_prediction == "probability"
             matrix fcstats = fcstats_probability(target, prediction)
         endif
+    else
+        errorif(TRUE, "unknown estimation class")
     endif
 
     return fcstats
@@ -370,10 +431,10 @@ function matrix target_means (const matrix target,
     * return: The matrix of mean values of the target variable for each observation.
     */
 
-    scalar N = $nobs
+    scalar N = rows(target)
     matrix yhat = mshape(NA, N, 1)
 
-    loop i = 1..N
+    loop i=1..N
         matrix idx = indices_of_closest[,i]
         matrix yhat[i] = mean(target[idx])
     endloop
