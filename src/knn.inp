@@ -25,9 +25,10 @@ function bundle default_values (void)
 
     bundle self = defbundle()
     scalar self.stdize_features = TRUE
-    scalar self.error = FALSE
     string self.distance_type = "euclidean"
     string self.class_prediction = "majority"
+    scalar self.kfold_sampling = 0
+    scalar self.stratified_sampling = FALSE
     scalar self.nobs = $nobs
     scalar self.sample_t1 = $t1
     scalar self.sample_t2 = $t2
