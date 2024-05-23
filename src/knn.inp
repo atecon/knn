@@ -63,7 +63,6 @@ function bundle knn_fit (const series y "Target",
                          bundle opts[null] "Parameter bundle")
     /* Function for computing KNN: run the setup and train the model. */
 
-
     if !exists(opts)
         bundle opts = defbundle()
     endif
@@ -78,7 +77,7 @@ function bundle knn_fit (const series y "Target",
     string self.depvar = argname(y)
     strings self.parnames = varnames(xlist)
     string self.type = getinfo(y).discrete == TRUE ? "classification" : "regression"
-    matrix self.features = prepare_features(xlist, self.stdize_features)
+    matrix self.features = prepare_features({xlist}, self.stdize_features)
     matrix self.target = {y}
 
     matrix distances = compute_distances(self.features)
@@ -287,24 +286,18 @@ function matrix fcstats_probability (const matrix actual,
 end function
 
 
-function matrix prepare_features (const numeric xlist,
+function matrix prepare_features (matrix features,
                                   const bool stdize_features)
     /*
     * This function prepares the features matrix for k-nearest neighbors (KNN) algorithm.
     *
     * Parameters:
-    *   - xlist: A numeric series or matrix containing the features.
+    *   - features: A matrix containing the features.
     *   - stdize_features: A boolean indicating whether to standardize the features.
     *
     * Returns:
     *   - A matrix containing the prepared features.
     */
-
-    if typename(xlist) == "series" || typename(xlist) == "list"
-        matrix features = {xlist}
-    else
-        matrix features = xlist
-    endif
 
     if stdize_features
         matrix features = stdize(features, 0, TRUE)
