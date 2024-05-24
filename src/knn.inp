@@ -156,7 +156,22 @@ end function
 
 
 function void knn_plot_score (const bundle self, const string filename[null])
-    /* Plot mean scores by neighbors. */
+    /*
+    * Plots the optimal score for different values of k in k-nearest neighbors algorithm.
+    *
+    * Parameters:
+    *    self: bundle
+    *        The bundle containing the mean scores and other information.
+    *    filename: string (optional)
+    *        The name of the output file. If not provided, the plot will be displayed.
+    *
+    * Notes:
+    *    - The function requires cross-validation results in the bundle.
+    *    - The plot will show the optimal score for each value of k.
+    *    - The x-axis represents the number of neighbors (k), and the y-axis represents the mean score.
+    *    - The title of the plot includes the optimal score, the optimal k value, and the cross-validation method used.
+    *    - The plot will be displayed or saved to a file based on the provided filename.
+    */
 
     if inbundle(self, "mean_scores")
         matrix ms = self.mean_scores
@@ -178,6 +193,16 @@ end function
 
 
 function strings get_folds_label (const int nfolds)
+    /*
+    * Generates an array of strings representing the labels for each fold in a cross-validation process.
+    *
+    * Parameters:
+    *   nfolds - The number of folds in the cross-validation process.
+    *
+    * Returns:
+    *   An array of strings, where each string represents the label for a fold.
+    */
+
     strings S = array(nfolds)
     loop i=1..nfolds
         S[i] = sprintf("fold=%d", i)
@@ -187,7 +212,18 @@ function strings get_folds_label (const int nfolds)
 end function
 
 
+
 function strings get_neighbors_label (const int n_neighbors)
+    /*
+    * This function generates an array of strings representing the labels for the nearest neighbors.
+    *
+    * Parameters:
+    *   - n_neighbors: The number of nearest neighbors.
+    *
+    * Returns:
+    *   - An array of strings representing the labels for the nearest neighbors.
+    */
+
     strings S = array(n_neighbors)
     loop i=1..n_neighbors
         S[i] = sprintf("k=%d", i)
@@ -196,9 +232,19 @@ function strings get_neighbors_label (const int n_neighbors)
     return S
 end function
 
+
+
 function matrix get_scores_by_neighbor (const matrices Scores)
-    /* Each page of Scores refers to the KNN with k neighbors. Each column refers
-    to some metric and each row to some fold on which the model was trained on. */
+    /*
+    * This function calculates the mean score for each neighbor in a set of scores.
+    *
+    * Parameters:
+    * - Scores: A set of matrices containing scores for each neighbor. Each column refers
+    *  to some metric and each row to some fold on which the model was trained on.
+    *
+    * Returns:
+    * - mean_score_by_neighbor: A matrix containing the mean score for each neighbor.
+    */
 
     scalar ncols = cols(Scores[1])
     scalar npages = nelem(Scores)
@@ -216,9 +262,27 @@ function matrix get_scores_by_neighbor (const matrices Scores)
 end function
 
 
-function void knn_compute (const matrix target, const matrix features,
-                           bundle *self, const bool compute_yhat[TRUE])
-    /* Do the actual computation. */
+function void knn_compute (const matrix target,
+                           const matrix features,
+                           bundle *self,
+                           const bool compute_yhat[TRUE])
+    /*
+    * This function computes the k-nearest neighbors (KNN) algorithm.
+    *
+    * Parameters:
+    * - target: The matrix of target variables.
+    * - features: The matrix of features.
+    * - self: A bundle containing additional parameters and variables.
+    * - compute_yhat: A boolean indicating whether to compute the predicted values.
+    *
+    * Returns:
+    * This function does not return any value.
+    *
+    * Description:
+    * The function computes the KNN algorithm by finding the k nearest neighbors for each observation in the features matrix.
+    * It then computes the predicted values for the target variables based on the type of estimation (regression or classification).
+    * The computed values are stored in the self.yhat matrix if compute_yhat is set to TRUE.
+    */
 
     matrix self.target = target
     matrix self.features = prepare_features(features, self.stdize_features)
@@ -241,8 +305,32 @@ function void knn_compute (const matrix target, const matrix features,
 end function
 
 
+
 function void knnCV (const matrix target, const matrix features, bundle *self)
-    # Function for cross-validation of KNN model.
+    /*
+    * This function performs k-fold cross-validation for the k-nearest neighbors (k-NN) algorithm.
+    * It takes a target matrix and a features matrix as input, along with a bundle containing
+    * various parameters for the k-NN algorithm. The function splits the data into training and
+    * validation sets using a specified cross-validation method, and then estimates the k-NN model
+    * for each training set. Finally, it computes the scores for each validation set and returns
+    * the results as a matrix.
+    *
+    * Parameters:
+    *    target: The target matrix containing the dependent variable.
+    *    features: The features matrix containing the independent variables.
+    *    self: A bundle containing the following parameters for the k-NN algorithm:
+    *        - kfold_nsplits: The number of folds for cross-validation.
+    *        - win_size: The window size for the time-series cross-validation method.
+    *        - splitters: The type of cross-validation method to use.
+    *        - stdize_features: Whether to standardize the features before fitting the model.
+    *        - type: The type of k-NN algorithm to use (e.g., classification or regression).
+    *        - class_prediction: The type of class prediction to use for classification.
+    *        - n_neighbors: The number of nearest neighbors to consider.
+    *        - distance_type: The type of distance metric to use.
+    *
+    * Returns:
+    *    The scores matrix, which contains the evaluation scores for each validation set.
+    */
 
     # Preparations for CvDataSplitter
     bundle DataCV = null
