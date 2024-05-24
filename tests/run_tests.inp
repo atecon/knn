@@ -5,40 +5,20 @@ set assert stop
 include "./src/knn.inp" --force
 include CvDataSplitter.gfn
 
-# Iterate over different values for k
-# Parameters
-scalar N_NEIGHBORS = 5
-matrix neighbors = seq(1, 10)
-matrix Scores = {}
 
-/*
+# Regression + no CV + different no. of neighbors
+# Parameters
+matrix neighbors = seq(1, 10)
+# Open dataset etc.
 open credscore.gdt --quiet --preserve
 list x = Age Selfempl OwnRent
 series y = Income
 # Remove missing values and define training set
 smpl y x --no-missing --permanent
-genr index
-series trainset = (index <= 50) ? TRUE : FALSE
+bundle Model = knn_fit(y, x, neighbors)
+print Model.rsq
+print Model.ess
 
-loop i=1..nelem(neighbors)
-    print i
-
-    # Training
-    smpl trainset == TRUE --restrict --replace
-    bundle Model = knn_fit(y, x, neighbors[i])
-    print Model
-
-    # Out-of-sample Prognose
-    smpl trainset == FALSE --restrict --replace
-    series prediction = knn_predict(Model, x)
-
-    # Speicher die scores
-    Scores ~= knn_scores(y, prediction, Model)
-
-    smpl full
-endloop
-Scores
-*/
 
 
 ##### Cross-validation for regression using "loo" strategy

@@ -65,40 +65,76 @@ end function
 
 function bundle knn_fit (const series y "Target",
                          const list xlist "Features",
-                         const int n_neighbors[1::5] "No. of neighbors",
+                         const numeric n_neighbors "No. of neighbors",
                          bundle opts[null] "Parameter bundle")
     /* Function for computing KNN: run the setup and train the model. */
+
+    list L = y xlist
+    errorif(sum(missing(L)), "Some  have missing values. Please drop these first.")
+    errorif($nobs <= n_neighbors, "Number of rows must exceed number of neighbors.")
+    errorif(typename(n_neighbors) != "scalar" && typename(n_neighbors) != "matrix",
+            "Parameter 'n_neighbors' must bei either of type scalar or matrix.")
 
     if !exists(opts)
         bundle opts = defbundle()
     endif
 
-    list L = y xlist
-    errorif(sum(missing(L)), "Some  have missing values. Please drop these first.")
-    errorif($nobs <= n_neighbors, "Number of rows must exceed number of neighbors.")
-
     bundle self = set_bundle_and_get_defaults(xlist, opts)
     self.distance_type = tolower(self.distance_type)
-    scalar self.n_neighbors = n_neighbors
     string self.depvar = argname(y)
     strings self.parnames = varnames(xlist)
     string self.type = getinfo(y).discrete == TRUE ? "classification" : "regression"
     matrix target = {y}
     matrix mX = {xlist}
 
+    matrix neighbor_values = values(vec(n_neighbors))
+    scalar n_neighbor_values = nelem(neighbor_values)
 
     if self.splitters == "none"
-        knn_compute(target, mX, &self)
-        matrix self.uhat = self.target - self.yhat
         if self.type == "regression"
-            # TODO: also valid for classification?
-            scalar self.rsq = get_rsq(self.target, self.yhat)
-            scalar self.ess = sst(self.uhat)
+            matrix self.ess = mshape(NA, n_neighbor_values, 1)
+            matrix self.rsq = mshape(NA, n_neighbor_values, 1)
+            strings rlabel_rsq_ess = array(n_neighbor_values)
+            string clabel_rsq = "R^2"
+            string clabel_ess = "ess"
         endif
-    else
-        matrix self.features = mX
-        knnCV(target, mX, &self)
     endif
+
+    loop nb=1..n_neighbor_values
+        printf "\nStart analysis for k = %d neighbors.\n", neighbor_values[nb]
+
+        scalar self.n_neighbors = neighbor_values[nb] # # add to self
+
+        if self.splitters == "none"
+            knn_compute(target, mX, &self)
+            matrix self.uhat = self.target - self.yhat
+
+            if self.type == "regression"
+                # TODO: also valid for classification?
+                scalar self.rsq[nb] = get_rsq(self.target, self.yhat)
+                scalar self.ess[nb] = sst(self.uhat)
+                rlabel_rsq_ess[nb] = sprintf("k=%d", neighbor_values[nb])
+            endif
+
+        else
+            matrix self.features = mX
+            knnCV(target, mX, &self)
+        endif
+    endloop
+
+    # overwrite the temporary value
+    delete self.n_neighbors
+    self.n_neighbors = n_neighbors
+
+    if inbundle(self, "rsq")
+        cnameset(self.rsq, clabel_rsq)
+        rnameset(self.rsq, rlabel_rsq_ess)
+    endif
+    if inbundle(self, "ess")
+        cnameset(self.ess, clabel_ess)
+        rnameset(self.ess, rlabel_rsq_ess)
+    endif
+
 
 
     return self
