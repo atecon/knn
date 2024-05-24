@@ -69,13 +69,27 @@ bundle Params = _(splitters = SPLITTERS, kfold_nsplits = KFOLD_NSPLITS)
 # Select features and target
 list x = Age Selfempl OwnRent
 series y = Income
-# Restrict to training set
-genr index
-smpl index <= 75 --restrict
 # Fit the model
 bundle Model = knn_fit(y, x, N_NEIGHBORS, Params)
 matrix Scores = Model.Scores
 assert(rows(Scores) == KFOLD_NSPLITS)
+
+
+##### Cross-validation for regression using "recwin" strategy for time-series
+open denmark.gdt --quiet --preserve
+# Set parameters
+scalar N_NEIGHBORS = 3
+scalar WIN_SIZE = 32
+string SPLITTERS = "recwin"  # either "kfold", "loo"
+bundle Params = _(splitters = SPLITTERS, win_size = WIN_SIZE)
+# Select features and target
+list x = ldiff(LRY) diff(IBO)
+series y = ldiff(LRM)
+smpl y x --no-missing
+# Fit the model
+bundle Model = knn_fit(y, x, N_NEIGHBORS, Params)
+matrix Scores = Model.Scores
+print Scores
 
 
 

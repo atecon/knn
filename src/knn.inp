@@ -29,6 +29,7 @@ function bundle default_values (void)
     string self.class_prediction = "majority"
     string self.splitters = "none"  # "stratified_kfold", "tscv", "loo"
     scalar self.kfold_nsplits = 5   # number of folds for kfold-splitters
+    scalar self.win_size = 32   # number of folds for timeseries-splitters
     string self.scoring_regression = "rmse"
     string self.scoring_classification = "accuracy"
     scalar self.nobs = $nobs
@@ -137,6 +138,7 @@ function void knnCV (const matrix target, const matrix features, bundle *self)
     matrix DataCV.X = target ~ features
     matrix DataCV.index = seq(1, rows(DataCV.X))'
     scalar DataCV.n_folds = self.kfold_nsplits
+    scalar DataCV.win_size = self.win_size
     string DataCV.cv_type = self.splitters
     # Retrive the training and validation data
     CvDataSplitter(&DataCV)
