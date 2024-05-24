@@ -104,7 +104,8 @@ function bundle knn_fit (const series y "Target",
 end function
 
 
-function void knn_compute (const matrix target, const matrix features, bundle *self)
+function void knn_compute (const matrix target, const matrix features,
+                           bundle *self, const bool compute_yhat[TRUE])
     /* Do the actual computation. */
 
     matrix self.target = target
@@ -112,15 +113,18 @@ function void knn_compute (const matrix target, const matrix features, bundle *s
     matrix distances = compute_distances(self.features, self.distance_type)
     # Compute the indices for each observation which are the closest to it
     matrix indices_of_closest = indices_of_closest(distances, self.n_neighbors)
-    # Compute the predictions for the target using data on the closest neighbors
-    if self.type == "regression"
-        matrix self.yhat = compute_yhat_regression(target, indices_of_closest)
-    elif self.type == "classification"
-        matrix self.yhat = compute_yhat_classification(target,
-                                                       indices_of_closest,
-                                                       self.class_prediction)
-    else
-        errorif(TRUE, "unknown estimation class")
+
+    if compute_yhat == TRUE
+        # Compute the predictions for the target using data on the closest neighbors
+        if self.type == "regression"
+            matrix self.yhat = compute_yhat_regression(target, indices_of_closest)
+        elif self.type == "classification"
+            matrix self.yhat = compute_yhat_classification(target,
+                                                           indices_of_closest,
+                                                           self.class_prediction)
+        else
+            errorif(TRUE, "unknown estimation class")
+        endif
     endif
 end function
 
@@ -140,7 +144,8 @@ function void knnCV (const matrix target, const matrix features, bundle *self)
 
     # Estimate the model for each training set
     matrix Scores = {}
-    strings clabels = array(n_trainsets)
+    strings rlabels = array(n_trainsets)
+
     loop tset=1..n_trainsets
         bundle model = _(stdize_features = self.stdize_features,
                          type = self.type,
@@ -154,14 +159,20 @@ function void knnCV (const matrix target, const matrix features, bundle *self)
         assert(rows(y_train) == rows(X_train))
         assert(rows(y_test) == rows(X_test))
 
-        knn_compute(y_train, X_train, &model)  # in principle, we do not need the in-sample predictions here
+        # set computing in-sample predictions to FALSE as not needed here
+        knn_compute(y_train, X_train, &model, FALSE)
         matrix forecast = knn_predict(model, X_test)  # outforecast using the validation set
-
         matrix Scores ~= knn_scores(y_test, forecast, model)
-        clabels[tset] = sprintf("fold=%d", tset)
+
+        if tset == 1
+            strings metric_labels = rnameget(Scores)
+        endif
+        rlabels[tset] = sprintf("fold=%d", tset)
     endloop
-    cnameset(Scores, clabels)
-    self.Scores = Scores
+
+    self.Scores = Scores'
+    rnameset(self.Scores, rlabels)
+    cnameset(self.Scores, metric_labels)
 end function
 
 
@@ -366,8 +377,7 @@ function matrix prepare_features (matrix features,
     * Returns:
     *   - A matrix containing the prepared features.
     */
-
-    if stdize_features
+    if stdize_features && rows(features) > 1
         matrix features = stdize(features, 0, TRUE)
     endif
 
