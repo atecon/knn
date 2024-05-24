@@ -1,76 +1,96 @@
-# K-Nearest Neighbors (KNN) Package
+# KNN Package Documentation
 
-This package provides a simple implementation of the K-Nearest Neighbors (KNN) algorithm in Gretl. The public functions provided by this package are:
+The KNN (K-Nearest Neighbors) package is a powerful tool for performing KNN classification and regression tasks. It provides a set of functions that allow you to fit a model, make predictions, get scores, summarize the model, and plot the scores.
 
-- `knn_fit`
-- `knn_predict`
-- `knn_scores`
-- `knn_summary`
+## Public Functions
 
-Please note that this package is a simple implementation of the KNN algorithm and may not include all features of more comprehensive machine learning libraries.
+### `knn_fit(train_data, train_labels, n_neighbors)`
 
-## `knn_fit`
-
-This function fits the KNN model to the provided data.
-
-**Syntax:**
-```gretl
-knn_fit(xlist, ylist, opts)
-```
+This function fits the KNN model to the training data.
 
 **Parameters:**
-- `xlist`: A list of predictor variables.
-- `ylist`: The target variable.
-- `opts`: An optional bundle of options for the KNN algorithm.
+- `y`: *series*, The training data to fit the model on.
+- `xlist`: *list*, The features to use for the KNN algorithm.
+- `n_neighbors`: *int* or *matrix*, The number of neighbors to use for the KNN algorithm. If an integer is provided, a single KNN model is fitted. If a matrix is provided, multiple KNN models are fitted with different numbers of neighbors.
+- `opts[null]`: *bundle*, Optionally, a bundle of options to pass to the KNN algorithm.
+
+The `opts` bundle can contain the following options:
+
+- `distance_type`: *string*, The distance metric to use for the KNN algorithm. Default is `euclidean`. Possible values are the ones supported by Gretl's built-in function `distance()` (see `help distance`).
+- `class_prediction`: *string*, The method to use for predicting classes in a classification task. Default is `majority`. Possible values are `majority` and `probability`. Majority returns the most common class among the neighbors, while probability returns the proportion of neighbors that belong to the class most common among the neighbors.
+- `scoring_regression`: *string*, The method to use for scoring the model in a regression task. Default is `rmse`. Possible values are `me`, `rmse`, `mae`, `mape` and others supported by Gretl's built-in function `fcstats()` (see `help fcstats`).
+- `scoring_classification`: *string*, The method to use for scoring the model in a classification task. Default is ***TBA**
+- `splitters`: *string*, The method to use for splitting the data into training and test sets. Default is `none` implying that the data is not split and no cross-validation is performed. Possible values are
+  + `kfold`: perform k-fold cross-validation with the number of folds specified by the `kfold_nsplits` parameter (default: 5).
+  + `loo`: perform leave-one-out cross-validation.
+  + `recwin`: perform recursive window cross-validation with the window size specified by the `win_size` parameter (default: 10).
+  + `rolwin`: perform rolling window cross-validation with the window size specified by the `win_size` parameter (default: 10).
+- `stdize_features`: *bool*, Whether to standardize the features before fitting the model. Default is `TRUE`.
+
 
 **Returns:**
-A bundle containing the fitted KNN model.
+- A fitted KNN model object stored in a `bundle`. The bundle includes the following elements:
 
-## `knn_predict`
+  + `nobs`: *int*, Number of observations in the training and validation data.
+  + `optimal_k`: *int*, The optimal number of neighbors selected by the cross-validation procedure (only if cross-validation is performed).
+  + `optimal_score`: *scalar*, The optimal score achieved by the model on the validation data (only if cross-validation is performed).
+  + `sample_t1`: *int*, The index of the first observation in the training set.
+  + `sample_t2`: *int*, The index of the last observation in the training set.
+  + `features`: *matrix*, The features used for fitting the model.
+  + `mean_scores`: *matrix*, The mean scores achieved by the model on the validation data for each number of neighbors (only if cross-validation is performed). Rows represent the number of neighbors used, and columns represent the scoring metrics.
+  + `depvar`: *string*, The dependent variable used for fitting the model.
+  + `parnames`: *string array*, The names of the features used for fitting the model.
+  + `type`: *string*, The type of the model (classification or regression).
+  + `Scores`: *matrices*, Array of matrices containing the scores achieved by the model on the validation data for each number of neighbors (only if cross-validation is performed). Rows represent the k-fold splits, and columns represent the scoring metrics. Each matrix corresponds to a different number of neighbors.
 
-This function uses a fitted KNN model to make predictions on new data.
 
-**Syntax:**
-```gretl
-knn_predict(model, newdata)
-```
+### `knn_predict(model, X)`
+
+This function uses a fitted KNN model to make predictions on the test data.
 
 **Parameters:**
-- `model`: A fitted KNN model.
-- `newdata`: New data for which to make predictions.
+- `model`: *bundle*, The fitted KNN model object.
+- `X`: *numeric*, A list or matrix of the test data to make predictions on.
 
 **Returns:**
-A list of predicted values.
+- A matrix of predictions.
 
-## `knn_scores`
 
-This function calculates performance metrics for a fitted KNN model.
+### `knn_scores(actual, pred, model)`
 
-**Syntax:**
-```gretl
-knn_scores(model, actual, predicted)
-```
+This function calculates the accuracy score (for classification tasks) or the mean squared error (for regression tasks) of the KNN model.
 
 **Parameters:**
-- `model`: A fitted KNN model.
-- `actual`: The actual target values.
-- `predicted`: The predicted target values.
+- `actual`: *series* or *matrix*, The actual data.
+- `pred`: *series* or *matrix*, The predicted data.
+- `model`: The fitted KNN model.
 
 **Returns:**
-A bundle containing various performance metrics.
+A *matrix* holding various accuracy scores.
 
-## `knn_summary`
 
-This function provides a summary of a fitted KNN model.
+### `knn_summary(model)`
 
-**Syntax:**
-```gretl
-knn_summary(model)
-```
+This function provides a summary of the KNN model.
 
 **Parameters:**
-- `model`: A fitted KNN model.
+- `model`: *bundle*, The fitted KNN model.
 
 **Returns:**
-A string containing a summary of the model.
+- A summary of the model.
 
+
+### `knn_plot_score(model, filename[null])`
+
+This function generates a plot showing the mean performance (across all cross-validation iterations) of the KNN model as a function of the number of neighbors.
+
+**Parameters:**
+- `model`: The fitted KNN model.
+- `filename`: *string*, The name of the file to save the plot to. If not provided, the plot is displayed in the Gretl GUI.
+
+**Returns:**
+- A plot showing the model's performance.
+
+
+# Change Log
+- v0.1: Initial release.

@@ -29,7 +29,7 @@ function bundle default_values (void)
     string self.class_prediction = "majority"
     string self.splitters = "none"  # "stratified_kfold", "tscv", "loo"
     scalar self.kfold_nsplits = 5   # number of folds for kfold-splitters
-    scalar self.win_size = 32   # number of folds for timeseries-splitters
+    scalar self.win_size = 10   # number of folds for timeseries-splitters
     string self.scoring_regression = "rmse"
     string self.scoring_classification = "accuracy"
     scalar self.nobs = $nobs
@@ -38,7 +38,6 @@ function bundle default_values (void)
 
     return self
 end function
-
 
 
 function matrix compute_distances (const matrix features,
@@ -155,7 +154,8 @@ function bundle knn_fit (const series y "Target",
 end function
 
 
-function void knn_plot_score (const bundle self, const string filename[null])
+function void knn_plot_score (const bundle self,
+                              const string filename[null])
     /*
     * Plots the optimal score for different values of k in k-nearest neighbors algorithm.
     *
