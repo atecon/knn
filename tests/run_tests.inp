@@ -60,7 +60,7 @@ assert(rows(Scores[1]) == KFOLD_NSPLITS)
 ##### Cross-validation for regression using "recwin" strategy for time-series
 open denmark.gdt --quiet
 # Set parameters
-scalar N_NEIGHBORS = 3
+N_NEIGHBORS = 3
 scalar WIN_SIZE = 32
 string SPLITTERS = "recwin"  # either "kfold", "loo"
 bundle Params = _(splitters = SPLITTERS, win_size = WIN_SIZE)
@@ -71,10 +71,10 @@ smpl y x --no-missing
 # Fit the model
 bundle Model = knn_fit(y, x, N_NEIGHBORS, Params)
 print Model
+knn_summary(Model)
 Scores = Model.Scores
 print Scores
-knn_summary(Model)
-
+knn_plot_score(Model)
 
 ##### Cross-validation for regression using "kfold" strategy
 ##### plus various no. of neighbors
