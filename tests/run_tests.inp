@@ -4,23 +4,25 @@ set assert stop
 
 include "./src/knn.inp" --force
 include CvDataSplitter.gfn
+include extra.gfn
 
-
-# Regression + no CV + different no. of neighbors
+/*
+##### Regression + no CV + different no. of neighbors
 # Parameters
-matrix neighbors = seq(1, 10)
+matrix N_NEIGHBORS = seq(1, 3)
 # Open dataset etc.
 open credscore.gdt --quiet --preserve
 list x = Age Selfempl OwnRent
 series y = Income
 # Remove missing values and define training set
 smpl y x --no-missing --permanent
-bundle Model = knn_fit(y, x, neighbors)
+bundle Model = knn_fit(y, x, N_NEIGHBORS)
 print Model.rsq
 print Model.ess
+knn_summary(Model)
+*/
 
-
-
+/*
 ##### Cross-validation for regression using "loo" strategy
 open credscore.gdt --quiet --preserve
 # Set parameters
@@ -35,10 +37,13 @@ genr index
 smpl index <= 75 --restrict
 # Fit the model
 bundle Model = knn_fit(y, x, N_NEIGHBORS, Params)
-matrix Scores = Model.Scores
-assert(rows(Scores) == $nobs)
+Scores = Model.Scores  # nelme(array) == no. of Ks passed to knn_fit
+print Scores
+assert(nelem(Scores) == nelem(N_NEIGHBORS))
+assert(rows(Scores[1]) == $nobs)
+*/
 
-
+/*
 ##### Cross-validation for regression using "kfold" strategy
 open credscore.gdt --quiet --preserve
 # Set parameters
@@ -51,10 +56,13 @@ list x = Age Selfempl OwnRent
 series y = Income
 # Fit the model
 bundle Model = knn_fit(y, x, N_NEIGHBORS, Params)
-matrix Scores = Model.Scores
-assert(rows(Scores) == KFOLD_NSPLITS)
+Scores = Model.Scores
+print Scores
+assert(nelem(Scores) == nelem(N_NEIGHBORS))
+assert(rows(Scores[1]) == KFOLD_NSPLITS)
+*/
 
-
+#/*
 ##### Cross-validation for regression using "recwin" strategy for time-series
 open denmark.gdt --quiet --preserve
 # Set parameters
@@ -68,10 +76,33 @@ series y = ldiff(LRM)
 smpl y x --no-missing
 # Fit the model
 bundle Model = knn_fit(y, x, N_NEIGHBORS, Params)
-matrix Scores = Model.Scores
+print Model
+Scores = Model.Scores
 print Scores
+knn_summary(Model)
+#*/
 
 
+##### Cross-validation for regression using "kfold" strategy
+##### plus various no. of neighbors
+open credscore.gdt --quiet
+# Set parameters
+matrix N_NEIGHBORS = seq(1, 10)
+scalar KFOLD_NSPLITS = 5
+string SPLITTERS = "kfold"  # either "kfold", "loo"
+bundle Params = _(splitters = SPLITTERS, kfold_nsplits = KFOLD_NSPLITS)
+# Select features and target
+list x = Age Selfempl OwnRent
+series y = Income
+# Fit the model
+bundle Model = knn_fit(y, x, N_NEIGHBORS, Params)
+print Model
+knn_summary(Model)
+
+
+
+##
+# TODO: knn_cvplot - boxplot of CV
 
 print "Finished all tests succesfully."
 quit

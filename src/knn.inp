@@ -84,6 +84,11 @@ function bundle knn_fit (const series y "Target",
     string self.depvar = argname(y)
     strings self.parnames = varnames(xlist)
     string self.type = getinfo(y).discrete == TRUE ? "classification" : "regression"
+    if self.type == "classification"
+        string self.metric = self.scoring_classification
+    else
+        string self.metric = self.scoring_regression
+    endif
     matrix target = {y}
     matrix mX = {xlist}
 
@@ -98,11 +103,12 @@ function bundle knn_fit (const series y "Target",
             string clabel_rsq = "R^2"
             string clabel_ess = "ess"
         endif
+    else
+        matrices self.Scores = array(n_neighbor_values)
     endif
 
     loop nb=1..n_neighbor_values
-        printf "\nStart analysis for k = %d neighbors.\n", neighbor_values[nb]
-
+        #printf "\nStart analysis for k = %d neighbors.\n", neighbor_values[nb]
         scalar self.n_neighbors = neighbor_values[nb] # # add to self
 
         if self.splitters == "none"
@@ -115,11 +121,14 @@ function bundle knn_fit (const series y "Target",
                 scalar self.ess[nb] = sst(self.uhat)
                 rlabel_rsq_ess[nb] = sprintf("k=%d", neighbor_values[nb])
             endif
-
         else
             matrix self.features = mX
-            knnCV(target, mX, &self)
+            bundle model = self
+            knnCV(target, mX, &model)
+            self.Scores[nb] = model.Scores
         endif
+
+        #printf "\nFinished analysis for k = %d neighbors.\n", neighbor_values[nb]
     endloop
 
     # overwrite the temporary value
@@ -135,9 +144,53 @@ function bundle knn_fit (const series y "Target",
         rnameset(self.ess, rlabel_rsq_ess)
     endif
 
-
+    if inbundle(self, "Scores")
+        matrix self.mean_scores = get_scores_by_neighbor(self.Scores)
+        bundle Btmp = get_optimal_score_and_k(self.mean_scores, self.metric)
+        self.optimal_k = Btmp.optimal_k
+        self.optimal_score = Btmp.optimal_score
+    endif
 
     return self
+end function
+
+
+function strings get_folds_label (const int nfolds)
+    strings S = array(nfolds)
+    loop i=1..nfolds
+        S[i] = sprintf("fold=%d", i)
+    endloop
+
+    return S
+end function
+
+
+function strings get_neighbors_label (const int n_neighbors)
+    strings S = array(n_neighbors)
+    loop i=1..n_neighbors
+        S[i] = sprintf("k=%d", i)
+    endloop
+
+    return S
+end function
+
+function matrix get_scores_by_neighbor (const matrices Scores)
+    /* Each page of Scores refers to the KNN with k neighbors. Each column refers
+    to some metric and each row to some fold on which the model was trained on. */
+
+    scalar ncols = cols(Scores[1])
+    scalar npages = nelem(Scores)
+    strings clabels = cnameget(Scores[1]) # retrieve metric names
+    matrix mean_score_by_neighbor = mshape(NA, npages, ncols)
+
+    loop i=1..ncols
+        matrix mean_score_by_neighbor[,i] = meanc(drill(Scores, , i))'
+    endloop
+
+    cnameset(mean_score_by_neighbor, clabels)
+    rnameset(mean_score_by_neighbor, get_neighbors_label(npages))
+
+    return mean_score_by_neighbor
 end function
 
 
@@ -182,7 +235,6 @@ function void knnCV (const matrix target, const matrix features, bundle *self)
 
     # Estimate the model for each training set
     matrix Scores = {}
-    strings rlabels = array(n_trainsets)
 
     loop tset=1..n_trainsets
         bundle model = _(stdize_features = self.stdize_features,
@@ -205,16 +257,28 @@ function void knnCV (const matrix target, const matrix features, bundle *self)
         if tset == 1
             strings metric_labels = rnameget(Scores)
         endif
-        rlabels[tset] = sprintf("fold=%d", tset)
     endloop
 
     self.Scores = Scores'
-    rnameset(self.Scores, rlabels)
+    rnameset(self.Scores, get_folds_label(tset))
     cnameset(self.Scores, metric_labels)
 end function
 
 
+function bundle get_optimal_score_and_k (const matrix mean_scores,
+                                         const string metric)
+    /* Based on cross-validated mean scores, retrieve the optimal number of
+    neighbors based on some metric. */
 
+    catch scalar pos = instrings(cnameget(mean_scores), toupper(metric))
+    errorif($error, "Unknown metric name passed.")
+
+    bundle B = empty
+    scalar B.optimal_k = iminc(mean_scores[,pos])
+    scalar B.optimal_score = mean_scores[B.optimal_k, pos]
+
+    return B
+end function
 
 
 function void knn_summary (const bundle self)
@@ -222,17 +286,29 @@ function void knn_summary (const bundle self)
 
     printf "\nK-Nearest Neighbors Model Summary\n"
     printf "----------------------------------\n"
-    printf "Type:                    %s\n", self.type
-    printf "Number of neighbors:     %d\n", self.n_neighbors
-    printf "Distance type:           %s\n", self.distance_type
-    printf "Standardize features:    %s\n", self.stdize_features ? "Yes" : "No"
-    printf "Target variable:         %s\n", self.depvar
-    printf "Feature variables:       %s\n", flatten(self.parnames, ", ")
-    printf "Number of observations:  %d\n", self.nobs
-    printf "Sample period:           %d to %d\n", self.sample_t1, self.sample_t2
-
-    if self.type == "regression"
+    printf "Type:                       %s\n", self.type
+    if self.splitters == "none"
+        if typename(self.n_neighbors) == "scalar"
+            printf "Number of neighbors:        %d\n", self.n_neighbors
+        else
+            printf "Number of neighbors:        %d to %d\n",
+              min(self.n_neighbors), max(self.n_neighbors)
+        endif
+    else
+        printf "Splitter:                   %s\n", self.splitters
+        printf "Optimal no. of neighbors:   %d\n", self.optimal_k
+        printf "Best mean score ('%s'):   %.4f\n", self.metric, self.optimal_score
+    endif
+    printf "Distance type:              %s\n", self.distance_type
+    printf "Standardize features:       %s\n", self.stdize_features ? "Yes" : "No"
+    printf "Target variable:            %s\n", self.depvar
+    printf "Feature variables:          %s\n", flatten(self.parnames, ", ")
+    printf "Number of observations:     %d\n", self.nobs
+    printf "Sample period:              %d to %d\n", self.sample_t1, self.sample_t2
+    if inbundle(self, "rsq") && typename(self.rsq) == "scalar"
         printf "R-squared:               %.4f\n", self.rsq
+    endif
+    if inbundle(self, "ess") && typename(self.ess) == "scalar"
         printf "Sum of squares:          %.4f\n", self.ess
     endif
     printf "----------------------------------\n"
