@@ -2,6 +2,9 @@
 
 The KNN (K-Nearest Neighbors) package is a powerful tool for performing KNN classification and regression tasks. It provides a set of functions that allow you to fit a model, make predictions, get scores, summarize the model, and plot the scores.
 
+Please report any issues or suggestions on the [GitHub page](https://github.com/atecon/knn) or Gretl mailing list.
+
+
 ## Public Functions
 
 ### `knn_fit(train_data, train_labels, n_neighbors)`
@@ -16,16 +19,16 @@ This function fits the KNN model to the training data.
 
 The `opts` bundle can contain the following options:
 
-- `distance_type`: *string*, The distance metric to use for the KNN algorithm. Default is `euclidean`. Possible values are the ones supported by Gretl's built-in function `distance()` (see `help distance`).
-- `class_prediction`: *string*, The method to use for predicting classes in a classification task. Default is `majority`. Possible values are `majority` and `probability`. Majority returns the most common class among the neighbors, while probability returns the proportion of neighbors that belong to the class most common among the neighbors.
-- `scoring_regression`: *string*, The method to use for scoring the model in a regression task. Default is `rmse`. Possible values are `me`, `rmse`, `mae`, `mape` and others supported by Gretl's built-in function `fcstats()` (see `help fcstats`).
+- `distance_type`: *string*, The distance metric to use for the KNN algorithm. Default is "euclidean". Possible values are the ones supported by Gretl's built-in function `distance()` (see `help distance`).
+- `class_prediction`: *string*, The method to use for predicting classes in a classification task. Default is "majority". Possible values are "majority" and "probability". Majority returns the most common class among the neighbors, while probability returns the proportion of neighbors that belong to the class most common among the neighbors.
+- `scoring_regression`: *string*, The method to use for scoring the model in a regression task. Default is "rmse". Possible values are "me", "rmse", "mae", "mape" and others supported by Gretl's built-in function `fcstats()` (see `help fcstats`).
 - `scoring_classification`: *string*, The method to use for scoring the model in a classification task. Default is ***TBA**
-- `splitters`: *string*, The method to use for splitting the data into training and test sets. Default is `none` implying that the data is not split and no cross-validation is performed. Possible values are
-  + `kfold`: perform k-fold cross-validation with the number of folds specified by the `kfold_nsplits` parameter (default: 5).
-  + `loo`: perform leave-one-out cross-validation.
-  + `recwin`: perform recursive window cross-validation with the window size specified by the `win_size` parameter (default: 10).
-  + `rolwin`: perform rolling window cross-validation with the window size specified by the `win_size` parameter (default: 10).
-- `stdize_features`: *bool*, Whether to standardize the features before fitting the model. Default is `TRUE`.
+- `splitters`: *string*, The method to use for splitting the data into training and test sets. Default is "none" implying that the data is not split and no cross-validation is performed. Possible values are
+  + "kfold": perform k-fold cross-validation with the number of folds specified by the `kfold_nsplits` parameter (default: 5).
+  + "loo": perform leave-one-out cross-validation.
+  + "recwin": perform recursive window cross-validation with the window size specified by the "win_size" parameter (default: 10).
+  + "rolwin": perform rolling window cross-validation with the window size specified by the "win_size" parameter (default: 10).
+- `stdize_features`: *bool*, Whether to standardize the features before fitting the model. Default is "TRUE".
 
 
 **Returns:**
