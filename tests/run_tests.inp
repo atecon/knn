@@ -11,7 +11,7 @@ scalar N_NEIGHBORS = 5
 matrix neighbors = seq(1, 10)
 matrix Scores = {}
 
-#/*
+/*
 open credscore.gdt --quiet --preserve
 list x = Age Selfempl OwnRent
 series y = Income
@@ -38,28 +38,44 @@ loop i=1..nelem(neighbors)
     smpl full
 endloop
 Scores
-#*/
+*/
 
 
-##### Cross-validation for regression
+##### Cross-validation for regression using "loo" strategy
 open credscore.gdt --quiet --preserve
-
 # Set parameters
 scalar N_NEIGHBORS = 7
-scalar KFOLD_NSPLITS = 5
-bundle Params = _(splitters = "kfold", kfold_nsplits = KFOLD_NSPLITS)
-
+string SPLITTERS = "loo"  # either "kfold", "loo"
+bundle Params = _(splitters = SPLITTERS)
 # Select features and target
 list x = Age Selfempl OwnRent
 series y = Income
-
 # Restrict to training set
 genr index
 smpl index <= 75 --restrict
-
 # Fit the model
 bundle Model = knn_fit(y, x, N_NEIGHBORS, Params)
-print Model.Scores
+matrix Scores = Model.Scores
+assert(rows(Scores) == $nobs)
+
+
+##### Cross-validation for regression using "kfold" strategy
+open credscore.gdt --quiet --preserve
+# Set parameters
+scalar N_NEIGHBORS = 7
+scalar KFOLD_NSPLITS = 2
+string SPLITTERS = "kfold"  # either "kfold", "loo"
+bundle Params = _(splitters = SPLITTERS, kfold_nsplits = KFOLD_NSPLITS)
+# Select features and target
+list x = Age Selfempl OwnRent
+series y = Income
+# Restrict to training set
+genr index
+smpl index <= 75 --restrict
+# Fit the model
+bundle Model = knn_fit(y, x, N_NEIGHBORS, Params)
+matrix Scores = Model.Scores
+assert(rows(Scores) == KFOLD_NSPLITS)
 
 
 
