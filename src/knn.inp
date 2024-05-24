@@ -46,11 +46,11 @@ function matrix compute_distances (const matrix features,
         Calculates the pairwise distances between the given features.
 
         Parameters:
-            features: A matrix containing the features in columns and records in rows.
+            features: A matrix containing the features in columns and records in rows (=T).
             distance_type: string name of distance type
 
         Returns:
-            D: A matrix containing the pairwise distances between the features.
+            D: T by T matrix containing the pairwise distances between the features.
             The rows refer to the i-th feature and the columns to the distances
             to the j-th feature. The diagonal contains the distances to itself is
             zero by definition.
@@ -151,6 +151,8 @@ function void knnCV (const matrix target, const matrix features, bundle *self)
         matrix X_train = DataCV.X_train[tset][,3:]
         matrix y_test = DataCV.X_test[tset][,2] # 1st column refers to index
         matrix X_test = DataCV.X_test[tset][,3:]
+        assert(rows(y_train) == rows(X_train))
+        assert(rows(y_test) == rows(X_test))
 
         knn_compute(y_train, X_train, &model)  # in principle, we do not need the in-sample predictions here
         matrix forecast = knn_predict(model, X_test)  # outforecast using the validation set
@@ -216,14 +218,18 @@ function matrix knn_predict (const bundle self,
 
     errorif(cols(new_data) != cols(self.features),
             "The number of columns in the new data points does not match the number of columns in the training data.")
-    scalar nX = rows(new_data)
+    scalar nrows_X = rows(new_data)
+    scalar ncols_X = cols(new_data)
     matrix new_data = prepare_features(new_data, self.stdize_features)
     matrix new_data |= self.features
     matrix distances = compute_distances(new_data, self.distance_type)
-    # Remove the initial nX columns which are the distances to themselves
-    # Keep only the initial nX rows which are the distances for the nX testdata records
-    distances = distances[1:nX,-seq(1,nX)]
-    # Compute the indices for each observation which are the closest to it
+    # Remove the initial nrows_X columns which are the distances to the test data
+    # Keep only the initial nrows_X rows which are the distances for the nrows_X testdata records
+    distances = distances[1:nrows_X,-seq(1,nrows_X)]
+    assert(rows(distances) ==  nrows_X)
+    assert(cols(distances) == rows(self.features))
+
+    # Compute the indices for each training record which are the closest to the test record
     matrix indices_of_closest = indices_of_closest(distances, self.n_neighbors)
 
     # Compute the predictions for the target using data on the closest neighbors
@@ -231,8 +237,8 @@ function matrix knn_predict (const bundle self,
         matrix prediction = compute_yhat_regression(self.target, indices_of_closest)
     else
         matrix prediction = compute_yhat_classification(self.target,
-                                                             indices_of_closest,
-                                                             self.class_prediction)
+                                                        indices_of_closest,
+                                                        self.class_prediction)
     endif
 
     return prediction
@@ -421,17 +427,18 @@ end function
 function matrix target_means (const matrix target,
                               const matrix indices_of_closest)
     /*
-    * Calculates the mean values of the target variable for each observation
-    * based on the indices of the closest neighbors.
+    * Calculates the mean values of the target variable from the training data
+    * for each observation of the closest neighbors (measured relative to the test data
+    * record).
     *
-    * target: The matrix containing the target variable values.
+    * target: The matrix containing the target variable values from the training data.
     * indices_of_closest: The matrix containing the indices of the closest
       neighbors for each observation.
 
     * return: The matrix of mean values of the target variable for each observation.
     */
 
-    scalar N = rows(target)
+    scalar N = cols(indices_of_closest)
     matrix yhat = mshape(NA, N, 1)
 
     loop i=1..N
@@ -485,12 +492,14 @@ function matrix indices_of_closest (const matrix distances, const int n_neighbor
     This function calculates the indices of the closest neighbors based on the given distances.
 
     Parameters:
-        - distances: matrix, the distances between observations.
+        - distances: matrix, the distances between observations. The rows refer to
+          each testdata record. The columns refer to the distance of each testdata
+          observation to each point of the training set
         - n_neighbors: int, the number of closest neighbors to consider.
 
     Returns:
         - idx: matrix, the indices of the closest neighbors (in rows) for each
-          observation (in columns). The rows equal the number of neighbors.
+          testdata record (in columns). The rows equal the number of neighbors.
     */
 
     scalar N = rows(distances)
