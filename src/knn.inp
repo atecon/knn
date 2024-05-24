@@ -155,6 +155,28 @@ function bundle knn_fit (const series y "Target",
 end function
 
 
+function void knn_plot_score (const bundle self, const string filename[null])
+    /* Plot mean scores by neighbors. */
+
+    if inbundle(self, "mean_scores")
+        matrix ms = self.mean_scores
+        string metric = toupper(self.scoring_regression)
+        scalar pos = instrings(cnameget(ms), metric)
+        string fname = exists(filename) ? filename : "display"
+        string title = sprintf("Optimal score of %.4f for k = %d, cv: %s",
+                               self.optimal_score, self.optimal_k, self.splitters)
+
+        gnuplot pos --matrix=ms --with-lines --time-series --output="@fname" \
+            {set grid; set xlabel "k neighbors" font ",13";\
+             set ylabel "mean of @metric" font ",13";\
+             set title "@title" font ",13";\
+             set linetype 1 lw 2 lc rgb 'black'; }
+    else
+        printf "ERROR: Plot requires cross-validation results"
+    endif
+end function
+
+
 function strings get_folds_label (const int nfolds)
     strings S = array(nfolds)
     loop i=1..nfolds
