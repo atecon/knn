@@ -97,5 +97,29 @@ print Model.mean_scores
 knn_plot_score(Model)
 
 
+
+
+#####################################
+### Classification using cross-validation
+# Run k-fold with 5 folds sampling
+#####################################
+open credscore.gdt --quiet
+# Set parameters
+matrix NEIGHBORS = seq(1,4)  # sequence of no. of neighbors to evaluate
+scalar KFOLD_NSPLITS = 5  # only relevant for splitters = "kfold"
+string SPLITTERS = "kfold"  # either "kfold", "loo"
+bundle Params = _(splitters = SPLITTERS, kfold_nsplits = KFOLD_NSPLITS)
+# Select features and target
+list x = Income Age Selfempl OwnRent
+series y = Acc
+# !!!Make sure, the target is recognized as being discrete!!!
+setinfo y --discrete
+
+# Fit the model
+bundle Model = knn_fit(y, x, NEIGHBORS, Params)
+knn_summary(Model)
+knn_plot_score(Model)
+
+
 print "Finished all tests succesfully."
 quit

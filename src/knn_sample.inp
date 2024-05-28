@@ -1,11 +1,11 @@
 clear
 set verbose off
 include knn.gfn
-
+/*
 open credscore.gdt --quiet
 
 # Select an example to run
-EXAMPLE = 3
+EXAMPLE = 2
 # Parameter
 scalar N_NEIGHBORS = 5  # no. of neighbors
 
@@ -43,8 +43,6 @@ else
 endif
 
 knn_summary(Model)  # Print summary of estimation
-stop
-
 series yhat = Model.yhat
 series uhat = Model.uhat
 
@@ -62,32 +60,38 @@ elif EXAMPLE == 2
 endif
 
 # In-sample scores
+print "In-sample scores"
 print knn_scores(y, yhat, Model)
 
 # Activate testset and predict out-of-sample
 smpl trainset == FALSE --restrict --replace
 series prediction = knn_predict(Model, x)
 # Out-of-sample scores
+print "Out-of-sample scores"
 print knn_scores(y, prediction, Model)
-print y prediction -o --range=:10
-
-stop
-
-
-
-/*
-# Determine the optimal number of cluster by means of a screeplot
-# ===============================================================
-scalar max_clusters = 5
-matrix inertia = seq(2, max_clusters)' ~ mshape(NA, max_clusters - 1, 1)
-cnameset(inertia, "n_clusters inertia")
-
-loop i=2..max_clusters
-    bundle Model = knn_fit(x, $i)
-    inertia[i-1, 2] = Model.within_variation_total
-endloop
-
-gnuplot 2 1 --matrix=inertia --with-lines --output=display \
-    {set title 'Scree plot showing inertia as a function of no. of clusters'; }
+#print y prediction -o --range=:15
 */
+
+
+#####################################
+### Regression using cross-validation
+# Run k-fold with 5 folds sampling
+#####################################
+open credscore.gdt --quiet
+# Set parameters
+matrix NEIGHBORS = seq(1,4)  # sequence of no. of neighbors to evaluate
+scalar KFOLD_NSPLITS = 5  # only relevant for splitters = "kfold"
+string SPLITTERS = "kfold"  # either "kfold", "loo"
+string METRIC = "mae"   # metric to optimize
+bundle Params = _(splitters = SPLITTERS, kfold_nsplits = KFOLD_NSPLITS,
+                  scoring_regression = METRIC)
+# Select features and target
+list x = Age Selfempl OwnRent
+series y = Income
+# Fit the model
+bundle Model = knn_fit(y, x, NEIGHBORS, Params)
+print Model
+knn_summary(Model)
+knn_plot_score(Model)
+
 
