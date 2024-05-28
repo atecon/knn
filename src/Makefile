@@ -1,6 +1,6 @@
 PKG = knn
 
-$(PKG).gfn: $(PKG).inp $(PKG).spec $(PKG)_sample.inp
+$(PKG).gfn: $(PKG).inp $(PKG).spec $(PKG)_sample.inp $(PKG)_help.md
 	gretlcli --makepkg $(PKG).inp
 
 
@@ -9,4 +9,4 @@ install: $(PKG).gfn
 	cat $(PKG)_help.md | tee ../README.md
 
 clean:
-	rm -f $(PKG).gfn
+	#rm -f $(PKG).gfn

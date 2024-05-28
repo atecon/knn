@@ -1,121 +1,158 @@
-# KMeans Package
+# KNN Package Documentation
 
-This package includes functionalities to identify unknown clusters of multidimensional data using the well known (at least in the machine-learning field) knn algorithm.
+The KNN (K-Nearest Neighbors) package is a powerful tool for performing KNN classification and regression tasks. It provides a set of functions that allow you to fit a model, make predictions, get scores, summarize the model, and plot the scores.
 
-The knn algorithm divides a set of `N` samples `X` into `k` disjoint clusters `C`, each described by the mean of the samples in the cluster. The means are called the cluster centroids.
-
-The objective is to minimize some loss. For instance, the objective is to minimize "inertia", or within-cluster sum-of-squares criterion in case of the Euclidean distance function.
-
-For more information see:
-
-https://scikit-learn.org/stable/modules/clustering.html#knn
-
-Please ask questions and report bugs on the Gretl mailing list if possible. Alternatively, create an issue ticket on the github repo (see below).
-Source code and test script(s) can be found here: https://github.com/atecon/knn
-
-
-## GUI access
-
-The dialog box can be opened via `View -> k-Means`.
+Please report any issues or suggestions on the [GitHub page](https://github.com/atecon/knn) or Gretl mailing list.
 
 
 # Public Functions
 
-## knn_fit
+### `knn_fit(train_data, train_labels, n_neighbors)`
 
-```
-knn_fit (const list xlist, const int n_clusters[2::2], bundle opts[null])
-```
+This function fits the KNN model to the training data.
 
-Execute the knn algorithm and estimate the clusters.
+*Parameters:*
 
-**Arguments:**
+- `y`: *series*, The training data to fit the model on.
+- `xlist`: *list*, The features to use for the KNN algorithm.
+- `n_neighbors`: *int* or *matrix*, The number of neighbors to use for the KNN algorithm. If an integer is provided, a single KNN model is fitted. If a matrix is provided, multiple KNN models are fitted with different numbers of neighbors.
+- `opts[null]`: *bundle*, Optionally, a bundle of options to pass to the KNN algorithm.
 
-- `xlist`: list, Features (regressors) to train the model.
-- `n_clusters`: int, Number of assumed clusters (default: 2)
-- `opts`: bundle, Optional parameters affecting the knn algorithm. You can pass the following parameters:
+The `opts` bundle can contain the following options:
 
-    * `algorithm`: string, knn algorithm to use. Currently, only `full` is supported (classical EM-style algorithm).
-    * `distance_type`: string, Name of the distance metric applied (default: `euclidean`). For more distance metrics, see gretl's built-in function `distance()`.
-    * `initializer`: string, Method for initialization. Either `random`: Choose `n_clusters` observations (rows) at random from data for the initial centroids. Or `pca`: Try to pick data points that are as far apart as possible by means of PCA.
-    * `max_iter`: int, Maximum number of iterations of the knn algorithm to run.
-    * `n_draws`: int, Number of time the knn algorithm will be run with different centroid seeds. The final results will be the best output of `n_draws` consecutive runs in terms of inertia.
-    * `tolerance`:  scalar, Minimum improvement of the `within_variation_total` (Sum of the squared distances across all clusters) required before early stopping the algorithm (default: 1e-4)
-    * `verbose`: int, Level of verbosity: `0`: don't print anything, `1`: print some details, `2`: print more details (default: `0`)
+- `distance_type`: *string*, The distance metric to use for the KNN algorithm. Default is "euclidean". Possible values are the ones supported by Gretl's built-in function `distance()` (see `help distance`).
+- `class_prediction`: *string*, The method to use for predicting classes in a classification task. Default is "majority". Possible values are
 
+  + "majority"
+  + "probability".
 
-**Return:** Bundle holding various items.
+  Majority returns the most common class among the neighbors, while probability returns the proportion of neighbors that belong to the class most common among the neighbors.
 
-- `between_variation`: scalar, Between cluster sum of squares = `total_ssq - within_variation_total`
-- `centroids`: matrix, Estimated mean values (centroids) for each feature (columns) and for each cluster (rows).
-- `cluster_id`: matrix, Estimated cluster ID for each observation for the best draw minimizing `inertia`.
-- `distances`: matrix, Estimated distance for the best draw minimizing `inertia`.
-- `error`: int, Error code. In case of no error `FALSE`, otherwise positive integer.
-- `nobs`: int, Number of non-missing observations used for training.
-- `pointsize`: scalar, Size of points being plotted when calling the `knn_plot()` function.
-- `total_ssq`: scalar, Sum of the squared distances of the features from its mean values
-- `use_circles`: bool, Plot circles instead of point when calling the `knn_plot()` function.
-- `within_variation_total`: scalar, Sum of the squared distances across all clusters.
-- `within_variation_avg`: scalar, Sum of the average squared distances across all clusters.
+- `scoring_regression`: *string*, The method to use for scoring the model in a regression task. Default is "rmse". Possible values are:
+
+  + "me"
+
+  + "rmse"
+
+  + "mae"
+
+  + "mape"
+
+  + and others supported by Gretl's built-in function `fcstats()` (see `help fcstats`).
+
+- `scoring_classification`: *string*, The method to use for scoring the model in a classification task. Default is "TSS" referring to the Hansen-Kuipers Score. Alternatives are:
 
 
-## knn_predict
+  + "POD": Prob. of detection
 
-```
-knn_predict (const list xlist, const bundle Model)
-```
+  + "POFD": Prob. of false detection
 
-Predict cluster belonging based on the estimated model.
+  + "HR": Hit rate
 
-**Arguments:**
+  + "FAR": False alaram rate
 
-- `xlist`: list, Features (regressors) used for predicting cluster belonging.
-- `Model`: bundle, Model object returned by the `knn_fit()` function.
+  + "CSI": Critical success index
 
-**Return:** Series holding the predicted cluster ID for each observation.
+  + "OR": Odds ratio
 
+  + "BIAS": Bias score
 
-## knn_summary
+  + "TSS": Hanssen-Kuipers score (POD - POFD)
 
-```
-knn_summary (const bundle Model)
-```
+  + "HSS": Heidke skill score
 
-Print summarizing information on estimation step after having applied the `knn_fit()` function.
+  + "ETS": Equitable threat score
 
-**Arguments:**
+  + "PRC": Precision
 
-- Model: bundle, Bundle returned by the `knn_fit()` function.
+  + "FSC": F-Score
 
-**Return:** Nothing.
+- `splitters`: *string*, The method to use for splitting the data into training and test sets. Default is "none" implying that the data is not split and no cross-validation is performed. Possible values are:
 
+  + "kfold": perform k-fold cross-validation with the number of folds specified by the `kfold_nsplits` parameter (default: 5).
 
-## knn_plot
+  + "loo": perform leave-one-out cross-validation.
 
-```
-knn_plot (const list xlist, const bundle self[null])
-```
+  + "recwin": perform recursive window cross-validation with the window size specified by the "win_size" parameter (default: 10).
 
-Factorized scatter plot estimated clusters for each 2-dimensional combination of features. This function calls the user-defined package "PairPlot" which must be installed.
+  + "rolwin": perform rolling window cross-validation with the window size specified by the "win_size" parameter (default: 10).
 
-**Arguments:**
-
-- `xlist`: list, Features (regressors) used for plotting.
-- `self`: bundle, Bundle for manipulating the plot. **Note** Here you can also pass options accepted by the "PairPlot" package which is used in the background.
-
-**Return:** Nothing.
+- `stdize_features`: *bool*, Whether to standardize the features before fitting the model. Default is "TRUE".
 
 
-# Changelog
+**Returns:**
 
-* **v0.3 (February 2024)**
-    * Add GUI dialog
-    * Move to markdown-based help file
-    * Internal improvements
+A fitted KNN model object stored in a `bundle`. The bundle includes the following elements:
 
-* **v0.2 (July 2022)**
-    * Fix bug that arises if the sample range is restricted, and you're trying to coerce a column vector that's not the full length of the dataset into a series on adding it to a bundle.
-    * Returned objects `cluster_id` and `distances` when calling the `knn_fit()` function are of type matrix instead of series, now.
+- `nobs`: *int*, Number of observations in the training and validation data.
+- `optimal_k`: *int*, The optimal number of neighbors selected by the cross-validation procedure (only if cross-validation is performed).
+- `optimal_score`: *scalar*, The optimal score achieved by the model on the validation data (only if cross-validation is performed).
+- `sample_t1`: *int*, The index of the first observation in the training set.
+- `sample_t2`: *int*, The index of the last observation in the training set.
+- `features`: *matrix*, The features used for fitting the model.
+- `mean_scores`: *matrix*, The mean scores achieved by the model on the validation data for each number of neighbors (only if cross-validation is performed). Rows represent the number of neighbors used, and columns represent the scoring metrics.
+- `depvar`: *string*, The dependent variable used for fitting the model.
+- `parnames`: *string array*, The names of the features used for fitting the model.
+- `type`: *string*, The type of the model (classification or regression).
+- `Scores`: *matrices*, Array of matrices containing the scores achieved by the model on the validation data for each number of neighbors (only if cross-validation is performed). Rows represent the k-fold splits, and columns represent the scoring metrics. Each matrix corresponds to a different number of neighbors.
 
-* **v0.1 (February 2022)**
-    * initial release
+
+### `knn_predict(model, X)`
+
+This function uses a fitted KNN model to make predictions on the test data.
+
+*Parameters:*
+
+- `model`: *bundle*, The fitted KNN model object.
+- `X`: *numeric*, A list or matrix of the test data to make predictions on.
+
+**Returns:**
+
+- A matrix of predictions.
+
+
+### `knn_scores(actual, pred, model)`
+
+This function calculates the accuracy score (for classification tasks) or the mean squared error (for regression tasks) of the KNN model.
+
+*Parameters:*
+
+- `actual`: *series* or *matrix*, The actual data.
+- `pred`: *series* or *matrix*, The predicted data.
+- `model`: The fitted KNN model.
+
+**Returns:**
+
+A *matrix* holding various accuracy scores.
+
+
+### `knn_summary(model)`
+
+This function provides a summary of the KNN model.
+
+*Parameters:*
+
+- `model`: *bundle*, The fitted KNN model.
+
+**Returns:**
+
+- A summary of the model.
+
+
+### `knn_plot_score(model, filename[null])`
+
+This function generates a plot showing the mean performance (across all cross-validation iterations) of the KNN model as a function of the number of neighbors.
+
+*Parameters:*
+
+- `model`: The fitted KNN model.
+- `filename`: *string*, The name of the file to save the plot to. If not provided, the plot is displayed in the Gretl GUI.
+
+**Returns:**
+
+- A plot showing the model's performance.
+
+
+# Change Log
+
+- v0.1 (June 2024): Initial release.

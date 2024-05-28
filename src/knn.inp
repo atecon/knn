@@ -31,7 +31,7 @@ function bundle default_values (void)
     scalar self.kfold_nsplits = 5   # number of folds for kfold-splitters
     scalar self.win_size = 10   # number of folds for timeseries-splitters
     string self.scoring_regression = "rmse"
-    string self.scoring_classification = "accuracy"
+    string self.scoring_classification = "TSS"  # TSS: Kuipers'-Score
     scalar self.nobs = $nobs
     scalar self.sample_t1 = $t1
     scalar self.sample_t2 = $t2
@@ -546,15 +546,17 @@ function matrix fcstats_majority (const matrix actual,
     * return: The matrix of evaluation statistics, including false rate, hit rate, and Kuipers score.
     */
 
+    /* TODO: Test first whether metrics are correctly computed
     bundle B = _(yup = actual, fcup = prediction)
     doKS(&B)
     matrix fcstats = B.KSfalse | B.KShit | B.KSstat
     rnameset(fcstats, defarray("false-rate", "hit-rate", "Kuipers-score"))
+    */
 
     # TODO: Results do not coincide. Check which function returns wrong values.
-    #matrix scores = scores2x2(actual ~ prediction, FALSE)
+    matrix scores = scores2x2(actual ~ prediction, FALSE)
 
-    return fcstats
+    return scores
 end function
 
 function matrix fcstats_probability (const matrix actual,
