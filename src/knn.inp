@@ -420,7 +420,7 @@ function void knn_summary (const bundle self)
     else
         printf "Splitter:                   %s\n", self.splitters
         printf "Optimal no. of neighbors:   %d\n", self.optimal_k
-        printf "Best mean score ('%s'):   %.4f\n", self.metric, self.optimal_score
+        printf "Best mean score ('%s'):    %.4f\n", self.metric, self.optimal_score
     endif
     printf "Distance type:              %s\n", self.distance_type
     printf "Standardize features:       %s\n", self.stdize_features ? "Yes" : "No"
