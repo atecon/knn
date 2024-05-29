@@ -704,7 +704,7 @@ function matrix target_class (const matrix target,
     *   the target variable for each observation.
     */
 
-    scalar N = $nobs
+    scalar N = cols(indices_of_closest)
     matrix yhat = mshape(NA, N, 1)
     scalar information = class_prediction == "majority" ? 1 : 2
 
