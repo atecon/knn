@@ -49,7 +49,7 @@ The `opts` bundle can contain the following options:
 
   + and others supported by Gretl's built-in function `fcstats()` (see `help fcstats`).
 
-- `scoring_classification`: *string*, The method to use for scoring the model in a classification task. Default is &quot;TSS&quot; referring to the Hansen-Kuipers Score. Alternatives are:
+- `scoring_classification`: *string*, The method to use for scoring the model in a classification task. Default is &quot;FSC&quot; referring to the F1-score which balances recall and precision equally and reduces to the simpler equation 2TP/(2TP + FP + FN). Alternatives are:
 
 
   + &quot;POD&quot;: Prob. of detection
@@ -484,7 +484,7 @@ string self.splitters = &quot;none&quot;  # &quot;stratified_kfold&quot;, &quot;
 scalar self.kfold_nsplits = 5   # number of folds for kfold-splitters
 scalar self.win_size = 10   # number of folds for timeseries-splitters
 string self.scoring_regression = &quot;rmse&quot;
-string self.scoring_classification = &quot;TSS&quot;  # TSS: Kuipers'-Score
+string self.scoring_classification = &quot;FSC&quot;  # FSC=F1-Score
 scalar self.nobs = $nobs
 scalar self.sample_t1 = $t1
 scalar self.sample_t2 = $t2
@@ -710,12 +710,21 @@ cnameset(self.Scores, metric_labels)
 <code>/* Based on cross-validated mean scores, retrieve the optimal number of
 neighbors based on some metric. */
 
-catch scalar pos = instrings(cnameget(mean_scores), toupper(metric))
+catch scalar position_criteria = instrings(cnameget(mean_scores), toupper(metric))
 errorif($error, &quot;Unknown metric name passed.&quot;)
 
 bundle B = empty
-scalar B.optimal_k = iminc(mean_scores[,pos])
-scalar B.optimal_score = mean_scores[B.optimal_k, pos]
+scalar B.optimal_k = iminc(mean_scores[,position_criteria], TRUE)
+scalar B.optimal_score = NA
+
+if !ok(B.optimal_k)
+  printf &quot;ERROR: Cannot compute optimal no. of neighbors for metric '%s'.\n&quot;, metric
+  print &quot;Please select another metric instead.&quot;
+  return B
+endif
+
+scalar B.optimal_score = mean_scores[B.optimal_k, position_criteria]
+print B.optimal_score
 
 return B
 </code>
@@ -907,7 +916,7 @@ return yhat
 *   the target variable for each observation.
 */
 
-scalar N = $nobs
+scalar N = cols(indices_of_closest)
 matrix yhat = mshape(NA, N, 1)
 scalar information = class_prediction == &quot;majority&quot; ? 1 : 2
 
@@ -1055,29 +1064,6 @@ series y = Income
 # Fit the model
 bundle Model = knn_fit(y, x, NEIGHBORS, Params)
 print Model
-knn_summary(Model)
-knn_plot_score(Model)
-
-
-
-#####################################
-### Classification using cross-validation
-# Run k-fold with 5 folds sampling
-#####################################
-open credscore.gdt --quiet
-# Set parameters
-matrix NEIGHBORS = seq(1,4)  # sequence of no. of neighbors to evaluate
-scalar KFOLD_NSPLITS = 5  # only relevant for splitters = &quot;kfold&quot;
-string SPLITTERS = &quot;kfold&quot;  # either &quot;kfold&quot;, &quot;loo&quot;
-bundle Params = _(splitters = SPLITTERS, kfold_nsplits = KFOLD_NSPLITS)
-# Select features and target
-list x = Income Age Selfempl OwnRent
-series y = Acc
-# !!!Make sure, the target is recognized as being discrete!!!
-setinfo y --discrete
-
-# Fit the model
-bundle Model = knn_fit(y, x, NEIGHBORS, Params)
 knn_summary(Model)
 knn_plot_score(Model)
 </sample-script>

@@ -40,7 +40,7 @@ The `opts` bundle can contain the following options:
 
   + and others supported by Gretl's built-in function `fcstats()` (see `help fcstats`).
 
-- `scoring_classification`: *string*, The method to use for scoring the model in a classification task. Default is "TSS" referring to the Hansen-Kuipers Score. Alternatives are:
+- `scoring_classification`: *string*, The method to use for scoring the model in a classification task. Default is "FSC" referring to the F1-score which balances recall and precision equally and reduces to the simpler equation 2TP/(2TP + FP + FN). Alternatives are:
 
 
   + "POD": Prob. of detection

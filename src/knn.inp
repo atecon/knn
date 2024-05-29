@@ -31,7 +31,7 @@ function bundle default_values (void)
     scalar self.kfold_nsplits = 5   # number of folds for kfold-splitters
     scalar self.win_size = 10   # number of folds for timeseries-splitters
     string self.scoring_regression = "rmse"
-    string self.scoring_classification = "TSS"  # TSS: Kuipers'-Score
+    string self.scoring_classification = "FSC"  # FSC=F1-Score
     scalar self.nobs = $nobs
     scalar self.sample_t1 = $t1
     scalar self.sample_t2 = $t2
@@ -380,12 +380,21 @@ function bundle get_optimal_score_and_k (const matrix mean_scores,
     /* Based on cross-validated mean scores, retrieve the optimal number of
     neighbors based on some metric. */
 
-    catch scalar pos = instrings(cnameget(mean_scores), toupper(metric))
+    catch scalar position_criteria = instrings(cnameget(mean_scores), toupper(metric))
     errorif($error, "Unknown metric name passed.")
 
     bundle B = empty
-    scalar B.optimal_k = iminc(mean_scores[,pos])
-    scalar B.optimal_score = mean_scores[B.optimal_k, pos]
+    scalar B.optimal_k = iminc(mean_scores[,position_criteria], TRUE)
+    scalar B.optimal_score = NA
+
+    if !ok(B.optimal_k)
+        printf "ERROR: Cannot compute optimal no. of neighbors for metric '%s'.\n", metric
+        print "Please select another metric instead."
+        return B
+    endif
+
+    scalar B.optimal_score = mean_scores[B.optimal_k, position_criteria]
+    print B.optimal_score
 
     return B
 end function
