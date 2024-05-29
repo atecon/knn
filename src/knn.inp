@@ -174,7 +174,11 @@ function void knn_plot_score (const bundle self,
     */
 
         if inbundle(self, "mean_scores") && nelem(self.n_neighbors) > 1
-        string metric = toupper(self.scoring_regression)
+        if self.type == "regression"
+            string metric = toupper(self.scoring_regression)
+        elif self.type == "classification"
+            string metric = toupper(self.scoring_classification)
+        endif
         matrix ms = self.mean_scores
         scalar pos = instrings(cnameget(ms), metric)
         string fname = exists(filename) ? filename : "display"
