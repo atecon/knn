@@ -106,34 +106,38 @@ function bundle knn_fit (const series y "Target",
             string clabel_ess = "ess"
         endif
     else
+        # each page refers to different number of folds
         matrices self.Scores = array(n_neighbor_values)
     endif
 
     loop nb=1..n_neighbor_values
         #printf "\nStart analysis for k = %d neighbors.\n", neighbor_values[nb]
-        scalar self.n_neighbors = neighbor_values[nb] # # add to self
+        scalar self.n_neighbors = neighbor_values[nb]
 
         if self.splitters == "none"
             knn_compute(target, mX, &self)
             matrix self.uhat = self.target - self.yhat
 
             if self.type == "regression"
-                # TODO: also valid for classification?
                 scalar self.rsq[nb] = get_rsq(self.target, self.yhat)
                 scalar self.ess[nb] = sst(self.uhat)
                 rlabel_rsq_ess[nb] = sprintf("k=%d", neighbor_values[nb])
+            elif self.type == "regression"
+                # TODO: implement support for classification?
             endif
         else
             matrix self.features = mX
             bundle model = self
             knnCV(target, mX, &model)
             self.Scores[nb] = model.Scores
+            if nb == 1
+                self.n_training_sets = model.n_training_sets
+            endif
         endif
-
         #printf "\nFinished analysis for k = %d neighbors.\n", neighbor_values[nb]
     endloop
 
-    # overwrite the temporary value
+    # Overwrite the temporary scalar value by the matrix holding all distinct values evaluated
     delete self.n_neighbors
     self.n_neighbors = n_neighbors
 
@@ -348,12 +352,12 @@ function void knnCV (const matrix target, const matrix features, bundle *self)
     string DataCV.cv_type = self.splitters
     # Retrive the training and validation data
     CvDataSplitter(&DataCV)
-    scalar n_trainsets = nelem(DataCV.X_train)
+    scalar self.n_training_sets = nelem(DataCV.X_train)
 
     # Estimate the model for each training set
     matrix Scores = {}
 
-    loop tset=1..n_trainsets
+    loop tset=1..self.n_training_sets
         bundle model = _(stdize_features = self.stdize_features,
                          type = self.type,
                          class_prediction = self.class_prediction,
@@ -368,12 +372,10 @@ function void knnCV (const matrix target, const matrix features, bundle *self)
 
         # set computing in-sample predictions to FALSE as not needed here
         knn_compute(y_train, X_train, &model, FALSE)
-        matrix forecast = knn_predict(model, X_test)  # outforecast using the validation set
+        # predict using the validation set
+        matrix forecast = knn_predict(model, X_test)
         matrix Scores ~= knn_scores(y_test, forecast, model)
-
-        if tset == 1
-            strings metric_labels = rnameget(Scores)
-        endif
+        strings metric_labels = tset == 1 ? rnameget(Scores) : metric_labels
     endloop
 
     self.Scores = Scores'
@@ -413,7 +415,7 @@ function void knn_summary (const bundle self)
     printf "\nK-Nearest Neighbors Model Summary\n"
     printf "----------------------------------\n"
     printf "Type:                       %s\n", self.type
-    if self.splitters == "none"
+    if self.splitters == "none"  # no CV performed
         if typename(self.n_neighbors) == "scalar"
             printf "Number of neighbors:        %d\n", self.n_neighbors
         else
@@ -422,8 +424,9 @@ function void knn_summary (const bundle self)
         endif
     else
         printf "Splitter:                   %s\n", self.splitters
+        printf "No. of training sets        %d\n", self.n_training_sets
         printf "Optimal no. of neighbors:   %d\n", self.optimal_k
-        printf "Best mean score ('%s'):    %.4f\n", self.metric, self.optimal_score
+        printf "Best mean score ('%s'):     %.4f\n", self.metric, self.optimal_score
     endif
     printf "Distance type:              %s\n", self.distance_type
     printf "Standardize features:       %s\n", self.stdize_features ? "Yes" : "No"
@@ -570,6 +573,7 @@ function matrix fcstats_majority (const matrix actual,
     */
 
     # TODO: Results do not coincide. Check which function returns wrong values.
+    # TODO: Currently fails in case of loo-CV as only a single record is predicted.
     matrix scores = scores2x2(actual ~ prediction, FALSE)
 
     return scores
