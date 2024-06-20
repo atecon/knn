@@ -31,7 +31,7 @@ function bundle default_values (void)
     scalar self.kfold_nsplits = 5   # number of folds for kfold-splitters
     scalar self.win_size = 10   # number of folds for timeseries-splitters
     string self.scoring_regression = "rmse"
-    string self.scoring_classification = "FSC"  # FSC=F1-Score
+    string self.scoring_classification = "PRC"  # FSC=F1-Score
     scalar self.nobs = $nobs
     scalar self.sample_t1 = $t1
     scalar self.sample_t2 = $t2
