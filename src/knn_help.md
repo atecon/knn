@@ -71,6 +71,8 @@ The `opts` bundle can contain the following options:
 
 - `splitters`: *string*, The method to use for splitting the data into training and test sets. Default is "none" implying that the data is not split and no cross-validation is performed. Possible values are:
 
+  + "none": no cross-validation is performed.
+
   + "kfold": perform k-fold cross-validation with the number of folds specified by the `kfold_nsplits` parameter (default: 5).
 
   + "loo": perform leave-one-out cross-validation; only for regression.
@@ -87,7 +89,7 @@ The `opts` bundle can contain the following options:
 A fitted KNN model object stored in a `bundle`. The bundle includes the following elements:
 
 - `depvar`: *string*, The dependent variable used for fitting the model.
-- `features`: *matrix*, The features used for fitting the model.
+- `features`: *matrix*, The features used for fitting the model; if `stdize_features` is set to `TRUE`, the features are standardized.
 - `mean_scores`: *matrix*, The mean scores achieved by the model on the validation data for each number of neighbors (only if cross-validation is performed). Rows represent the number of neighbors used, and columns represent the scoring metrics.
 - `n_training_sets`: *int*, The number of training sets used for cross-validation (only if cross-validation is performed).
 - `nobs`: *int*, Number of observations in the training and validation data.
@@ -98,8 +100,8 @@ A fitted KNN model object stored in a `bundle`. The bundle includes the followin
 - `sample_t2`: *int*, The index of the last observation in the training set.
 - `Scores`: *matrices*, Array of matrices containing the scores achieved by the model on the validation data. Each page refers to a different number of neighbors (as specified by `n_neighbors`) evaluated. Rows represent the k-fold splits, and columns represent the scoring metrics.
 - `type`: *string*, The type of the model (classification or regression).
-- `uhat`: *matrix*, The residuals of the model (only in case of no cross-validation).
-- `yhat`: *matrix*, The fitted values of the model (only in case of no cross-validation).
+- `uhat`: *matrix*, The residuals of the model (only in case of no cross-validation); rows: no. of observations, columns: no. of neighbors evaluated.
+- `yhat`: *matrix*, The fitted values of the model (only in case of no cross-validation); rows: no. of observations, columns: no. of neighbors evaluated.
 
 
 
@@ -147,7 +149,7 @@ This function provides a summary of the KNN model.
 
 ### `knn_plot_score(model, filename[null])`
 
-This function generates a plot showing the mean performance (across all cross-validation iterations) of the KNN model as a function of the number of neighbors. Only available if cross-validation is performed for multiple numbers of neighbors.
+This function generates a plot showing the mean performance (across all cross-validation iterations) of the KNN model as a function of the number of neighbors. Only available if cross-validation is performed. The plot shows the mean of the selected metric (e.g., RMSE, MAE, etc.) across all cross-validation iterations for each number of neighbors evaluated
 
 *Parameters:*
 
@@ -158,6 +160,19 @@ This function generates a plot showing the mean performance (across all cross-va
 
 - A plot showing the model's performance.
 
+
+### `knn_plot_cvscores(model, filename[null])`
+
+This function generates a plot showing the distribution of the performances across folds as a function of the number of neighbors. Only available if cross-validation is performed. The plot shows a boxplot of the selected metric (e.g., RMSE, MAE, etc.) across folds for each number of neighbors evaluated.
+
+*Parameters:*
+
+- `model`: The fitted KNN model.
+- `filename`: *string*, The name of the file to save the plot to. If not provided, the plot is displayed in the Gretl GUI.
+
+**Returns:**
+
+- A plot showing the model's performance.
 
 # Change Log
 

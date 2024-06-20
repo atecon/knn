@@ -180,25 +180,68 @@ function void knn_plot_score (const bundle self,
     *    - The plot will be displayed or saved to a file based on the provided filename.
     */
 
-        if inbundle(self, "mean_scores") && nelem(self.n_neighbors) > 1
+    if inbundle(self, "mean_scores") && nelem(self.n_neighbors) > 1
         if self.type == "regression"
             string metric = toupper(self.scoring_regression)
         elif self.type == "classification"
             string metric = toupper(self.scoring_classification)
         endif
-        matrix ms = self.mean_scores
-        scalar pos = instrings(cnameget(ms), metric)
+        scalar pos = instrings(cnameget(self.mean_scores), metric)
+        matrix toplot = self.mean_scores[,pos] ~ vec(uniq(self.n_neighbors))
         string fname = exists(filename) ? filename : "display"
         string title = sprintf("Optimal score of %.4f for k = %d, cv: %s",
                                self.optimal_score, self.optimal_k, self.splitters)
 
-        gnuplot pos --matrix=ms --with-lines --time-series --output="@fname" \
+        gnuplot --matrix=toplot --with-lines --output="@fname" \
             {set grid; set xlabel "k neighbors" font ",13";\
              set ylabel "mean of @metric" font ",13";\
              set title "@title" font ",13";\
-             set linetype 1 lw 2 lc rgb 'black'; }
+             set linetype 1 lw 2; }
     else
-        print "ERROR: Plot requires cross-validation results and/or multiple neighbors to evaluate."
+        print "WARNING: Plot requires cross-validation results and/or multiple neighbors to evaluate."
+    endif
+end function
+
+
+function void knn_plot_cvscores (const bundle self,
+                                 const string filename[null])
+    /*
+    * Plots the distribution of cross-validated scores for different values of k in k-nearest neighbors algorithm.
+    *
+    * Parameters:
+    *    self: bundle
+    *        The bundle returned by model fitting.
+    *    filename: string (optional)
+    *        The name of the output file. If not provided, the plot will be displayed.
+    *
+    * Notes:
+    *    - The function requires cross-validation results in the bundle.
+    *    - The plot will show a boxplot of the distribution of the scores across folds for each value of k.
+    *    - The x-axis represents the number of neighbors (k), and the y-axis represents the score.
+    *    - The plot will be displayed or saved to a file based on the provided filename.
+    */
+
+    if inbundle(self, "Scores")
+        if self.type == "regression"
+            string metric = toupper(self.scoring_regression)
+        elif self.type == "classification"
+            string metric = toupper(self.scoring_classification)
+        endif
+        scalar pos = instrings(cnameget(self.mean_scores), metric)
+        # Retrieve cv scores for each no. of neighbors
+        matrix scores = drill(self.Scores, null, pos)  # rows=folds, cols: n-neighbors
+        cnameset(scores, get_neighbors_label(nelem(self.n_neighbors)))
+        string fname = exists(filename) ? filename : "display"
+        string title = sprintf("Cross-validated scores, Optimal k=%d based on '%s' ('%s')",
+                               self.optimal_k, metric, self.splitters)
+
+        boxplot --matrix=scores --output="@fname" \
+            {set grid; set xlabel "neighbors" font ",13";\
+             set ylabel "Distribution of @metric" font ",13";\
+             set title "@title" font ",13";\
+             set linetype 1 lw 2; }
+    else
+        print "WARNING: Plot requires cross-validation results."
     endif
 end function
 
