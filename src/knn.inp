@@ -232,12 +232,12 @@ function void knn_plot_cvscores (const bundle self,
         matrix scores = drill(self.Scores, null, pos)  # rows=folds, cols: n-neighbors
         cnameset(scores, get_neighbors_label(nelem(self.n_neighbors)))
         string fname = exists(filename) ? filename : "display"
-        string title = sprintf("Cross-validated scores, Optimal k=%d based on '%s' ('%s')",
-                               self.optimal_k, metric, self.splitters)
+        string title = sprintf("Optimal k=%d using '%s' (nfolds = %d)",
+                               self.optimal_k, self.splitters, rows(scores))
 
         boxplot --matrix=scores --output="@fname" \
             {set grid; set xlabel "neighbors" font ",13";\
-             set ylabel "Distribution of @metric" font ",13";\
+             set ylabel "Distribution of @metric across folds" font ",13";\
              set title "@title" font ",13";\
              set linetype 1 lw 2; }
     else
