@@ -73,6 +73,7 @@ function bundle knn_fit (const series y "Target",
     errorif($nobs <= n_neighbors, "Number of rows must exceed number of neighbors.")
     errorif(typename(n_neighbors) != "scalar" && typename(n_neighbors) != "matrix",
             "Parameter 'n_neighbors' must bei either of type scalar or matrix.")
+    errorif(isconst(y) == TRUE, "Dependent variable is constant. Abort.")
 
     if !exists(opts)
         bundle opts = defbundle()
@@ -410,7 +411,6 @@ function bundle get_optimal_score_and_k (const matrix mean_scores,
     endif
 
     scalar B.optimal_score = mean_scores[B.optimal_k, position_criteria]
-    print B.optimal_score
 
     return B
 end function
@@ -433,7 +433,8 @@ function void knn_summary (const bundle self)
         printf "Splitter:                   %s\n", self.splitters
         printf "No. of training sets        %d\n", self.n_training_sets
         printf "Optimal no. of neighbors:   %d\n", self.optimal_k
-        printf "Best mean score ('%s'):     %.4f\n", self.metric, self.optimal_score
+        printf "Score name:                '%s'\n", self.metric
+        printf "Best mean score:            %.4f\n", self.optimal_score
     endif
     printf "Distance type:              %s\n", self.distance_type
     printf "Standardize features:       %s\n", self.stdize_features ? "Yes" : "No"
