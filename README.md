@@ -2,7 +2,7 @@
 
 The KNN (K-Nearest Neighbors) package is a powerful tool for performing KNN classification and regression tasks. It provides a set of functions that allow you to fit a model, make predictions, get scores, summarize the model, and plot the scores.
 
-Please report any issues or suggestions on the [GitHub page](https://github.com/atecon/knn) or Gretl mailing list.
+Please report any issues or suggestions on the Gretl mailing list or GitHub page: https://github.com/atecon/knn .
 
 
 # Public Functions
@@ -40,7 +40,9 @@ The `opts` bundle can contain the following options:
 
   + and others supported by Gretl's built-in function `fcstats()` (see `help fcstats`).
 
-- `scoring_classification`: *string*, The method to use for scoring the model in a classification task. Default is "FSC" referring to the F1-score which balances recall and precision equally and reduces to the simpler equation 2TP/(2TP + FP + FN). Alternatives are:
+- `scoring_classification`: *string*, The method to use for scoring the model in a classification task. Default is "PRC" referring to precision which is the number of hits over the sum of hits plus false, h/(h+f).
+<!-- Default is "FSC" referring to the F1-score which balances recall and precision equally and reduces to the simpler equation 2TP/(2TP + FP + FN). -->
+  Alternatives are:
 
 
   + "POD": Prob. of detection
@@ -71,7 +73,7 @@ The `opts` bundle can contain the following options:
 
   + "kfold": perform k-fold cross-validation with the number of folds specified by the `kfold_nsplits` parameter (default: 5).
 
-  + "loo": perform leave-one-out cross-validation.
+  + "loo": perform leave-one-out cross-validation; only for regression.
 
   + "recwin": perform recursive window cross-validation with the window size specified by the "win_size" parameter (default: 10).
 
@@ -84,17 +86,19 @@ The `opts` bundle can contain the following options:
 
 A fitted KNN model object stored in a `bundle`. The bundle includes the following elements:
 
+- `depvar`: *string*, The dependent variable used for fitting the model.
+- `features`: *matrix*, The features used for fitting the model.
+- `mean_scores`: *matrix*, The mean scores achieved by the model on the validation data for each number of neighbors (only if cross-validation is performed). Rows represent the number of neighbors used, and columns represent the scoring metrics.
+- `n_training_sets`: *int*, The number of training sets used for cross-validation (only if cross-validation is performed).
 - `nobs`: *int*, Number of observations in the training and validation data.
 - `optimal_k`: *int*, The optimal number of neighbors selected by the cross-validation procedure (only if cross-validation is performed).
 - `optimal_score`: *scalar*, The optimal score achieved by the model on the validation data (only if cross-validation is performed).
+- `parnames`: *string array*, The names of the features used for fitting the model.
 - `sample_t1`: *int*, The index of the first observation in the training set.
 - `sample_t2`: *int*, The index of the last observation in the training set.
-- `features`: *matrix*, The features used for fitting the model.
-- `mean_scores`: *matrix*, The mean scores achieved by the model on the validation data for each number of neighbors (only if cross-validation is performed). Rows represent the number of neighbors used, and columns represent the scoring metrics.
-- `depvar`: *string*, The dependent variable used for fitting the model.
-- `parnames`: *string array*, The names of the features used for fitting the model.
+- `Scores`: *matrices*, Array of matrices containing the scores achieved by the model on the validation data. Each page refers to a different number of neighbors (as specified by `n_neighbors`) evaluated. Rows represent the k-fold splits, and columns represent the scoring metrics.
 - `type`: *string*, The type of the model (classification or regression).
-- `Scores`: *matrices*, Array of matrices containing the scores achieved by the model on the validation data for each number of neighbors (only if cross-validation is performed). Rows represent the k-fold splits, and columns represent the scoring metrics. Each matrix corresponds to a different number of neighbors.
+
 
 
 ### `knn_predict(model, X)`
@@ -113,7 +117,7 @@ This function uses a fitted KNN model to make predictions on the test data.
 
 ### `knn_scores(actual, pred, model)`
 
-This function calculates the accuracy score (for classification tasks) or the mean squared error (for regression tasks) of the KNN model.
+This function calculates the scores of the model prediction.
 
 *Parameters:*
 
@@ -141,7 +145,7 @@ This function provides a summary of the KNN model.
 
 ### `knn_plot_score(model, filename[null])`
 
-This function generates a plot showing the mean performance (across all cross-validation iterations) of the KNN model as a function of the number of neighbors.
+This function generates a plot showing the mean performance (across all cross-validation iterations) of the KNN model as a function of the number of neighbors. Only available if cross-validation is performed for multiple numbers of neighbors.
 
 *Parameters:*
 
