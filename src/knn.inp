@@ -27,7 +27,7 @@ function bundle default_values (void)
     scalar self.stdize_features = TRUE
     string self.distance_type = "euclidean"
     string self.class_prediction = "majority"
-    string self.splitters = "none"  # "stratified_kfold", "tscv", "loo"
+    string self.splitters = "none"  # "kfold", "tscv", "loo"
     scalar self.kfold_nsplits = 5   # number of folds for kfold-splitters
     scalar self.win_size = 10   # number of folds for timeseries-splitters
     string self.scoring_regression = "rmse"
@@ -92,12 +92,17 @@ function bundle knn_fit (const series y "Target",
     errorif_classification_loo(self.type, self.splitters)
     errorif_multiclass_prob(y, self.class_prediction, self.type)
 
-    matrix target = {y}
+    series self.target = y
+    matrix my = {y}
     matrix mX = {xlist}
+    scalar self.n_features = cols(mX)
+    scalar self.nobs_features = rows(mX)
     matrix neighbor_values = values(vec(n_neighbors))
     scalar n_neighbor_values = nelem(neighbor_values)
 
     if self.splitters == "none"
+        matrix self.yhat = mshape(NA, self.nobs_features, n_neighbor_values)
+        matrix self.uhat = mshape(NA, self.nobs_features, n_neighbor_values)
         if self.type == "regression"
             matrix self.ess = mshape(NA, n_neighbor_values, 1)
             matrix self.rsq = mshape(NA, n_neighbor_values, 1)
@@ -110,25 +115,28 @@ function bundle knn_fit (const series y "Target",
         matrices self.Scores = array(n_neighbor_values)
     endif
 
+    matrix self.features = prepare_features(mX, self.stdize_features)
+
     loop nb=1..n_neighbor_values
         #printf "\nStart analysis for k = %d neighbors.\n", neighbor_values[nb]
         scalar self.n_neighbors = neighbor_values[nb]
 
         if self.splitters == "none"
-            knn_compute(target, mX, &self)
-            matrix self.uhat = self.target - self.yhat
+            # Standardization is done using the whole dataset
+            matrix self.yhat[,nb] = knn_compute(self, my, self.features)
+            matrix self.uhat[,nb] = my - self.yhat[,nb]
 
             if self.type == "regression"
-                scalar self.rsq[nb] = get_rsq(self.target, self.yhat)
-                scalar self.ess[nb] = sst(self.uhat)
+                scalar self.rsq[nb] = get_rsq(my, self.yhat[,nb])
+                scalar self.ess[nb] = sst(self.uhat[,nb])
                 rlabel_rsq_ess[nb] = sprintf("k=%d", neighbor_values[nb])
             elif self.type == "classification"
                 # TODO: implement support for classification?
             endif
         else
-            matrix self.features = mX
+            #matrix self.features = mX
             bundle model = self
-            knnCV(target, mX, &model)
+            knnCV(my, mX, &model)
             self.Scores[nb] = model.Scores
             if nb == 1
                 self.n_training_sets = model.n_training_sets
@@ -192,7 +200,7 @@ function void knn_plot_score (const bundle self,
         string title = sprintf("Optimal score of %.4f for k = %d, cv: %s",
                                self.optimal_score, self.optimal_k, self.splitters)
 
-        gnuplot --matrix=toplot --with-lines --output="@fname" \
+        gnuplot --matrix=toplot --with-lines --fit=none --output="@fname" \
             {set grid; set xlabel "k neighbors" font ",13";\
              set ylabel "mean of @metric" font ",13";\
              set title "@title" font ",13";\
@@ -235,11 +243,20 @@ function void knn_plot_cvscores (const bundle self,
         string title = sprintf("Optimal k=%d using '%s' (nfolds = %d)",
                                self.optimal_k, self.splitters, rows(scores))
 
-        boxplot --matrix=scores --output="@fname" \
+
+        if sum(meanc(scores) .= 0)  # check for constants in which case the boxplot fails to be drawn
+            gnuplot --matrix=scores --time-series --output="@fname" \
             {set grid; set xlabel "neighbors" font ",13";\
              set ylabel "Distribution of @metric across folds" font ",13";\
              set title "@title" font ",13";\
              set linetype 1 lw 2; }
+        else
+            boxplot --matrix=scores --output="@fname" \
+                {set grid; set xlabel "neighbors" font ",13";\
+                 set ylabel "Distribution of @metric across folds" font ",13";\
+                 set title "@title" font ",13";\
+                 set linetype 1 lw 2; }
+        endif
     else
         print "WARNING: Plot requires cross-validation results."
     endif
@@ -316,16 +333,15 @@ function matrix get_scores_by_neighbor (const matrices Scores)
 end function
 
 
-function void knn_compute (const matrix target,
-                           const matrix features,
-                           bundle *self,
-                           const bool compute_yhat[TRUE])
+function matrix knn_compute (const bundle self,
+                             const matrix target,
+                             const matrix features)
     /*
     * This function computes the k-nearest neighbors (KNN) algorithm.
     *
     * Parameters:
     * - target: The matrix of target variables.
-    * - features: The matrix of features.
+    * - features: The matrix of features, eventually standardized
     * - self: A bundle containing additional parameters and variables.
     * - compute_yhat: A boolean indicating whether to compute the predicted values.
     *
@@ -338,24 +354,21 @@ function void knn_compute (const matrix target,
     * The computed values are stored in the self.yhat matrix if compute_yhat is set to TRUE.
     */
 
-    matrix self.target = target
-    matrix self.features = prepare_features(features, self.stdize_features)
-    matrix distances = compute_distances(self.features, self.distance_type)
+    matrix distances = compute_distances(features, self.distance_type)
     # Compute the indices for each observation which are the closest to it
-    matrix indices_of_closest = indices_of_closest(distances, self.n_neighbors)
+    matrix indices_of_closest = indices_of_closest(distances, self.n_neighbors, FALSE)
 
-    if compute_yhat == TRUE
-        # Compute the predictions for the target using data on the closest neighbors
-        if self.type == "regression"
-            matrix self.yhat = compute_yhat_regression(target, indices_of_closest)
-        elif self.type == "classification"
-            matrix self.yhat = compute_yhat_classification(target,
-                                                           indices_of_closest,
-                                                           self.class_prediction)
-        else
-            errorif(TRUE, "unknown estimation class")
-        endif
+    # Compute the predictions for the target using data on the closest neighbors
+    if self.type == "regression"
+        matrix yhat = compute_yhat_regression(target, indices_of_closest)
+    elif self.type == "classification"
+        matrix yhat = compute_yhat_classification(target, indices_of_closest,
+                                                       self.class_prediction)
+    else
+        errorif(TRUE, "unknown estimation class")
     endif
+
+    return yhat
 end function
 
 
@@ -414,7 +427,8 @@ function void knnCV (const matrix target, const matrix features, bundle *self)
         assert(rows(y_test) == rows(X_test))
 
         # set computing in-sample predictions to FALSE as not needed here
-        knn_compute(y_train, X_train, &model, FALSE)
+        model.features = prepare_features(X_train, self.stdize_features)
+        model.target = target
         # predict using the validation set
         matrix forecast = knn_predict(model, X_test)
         matrix Scores ~= knn_scores(y_test, forecast, model)
@@ -534,13 +548,24 @@ function matrix knn_predict (const bundle self,
     assert(cols(distances) == rows(self.features))
 
     # Compute the indices for each training record which are the closest to the test record
-    matrix indices_of_closest = indices_of_closest(distances, self.n_neighbors)
+    if inbundle(self, "optimal_k")
+        matrix indices_of_closest = indices_of_closest(distances, self.optimal_k)
+    else
+        errorif(nelem(self.n_neighbors) > 1,
+                sprintf("You passed a vector of neighbors to evaluate.\n Please run CV first to estimate the optimal no. of neighbors before doing prediction."))
+        matrix indices_of_closest = indices_of_closest(distances, self.n_neighbors)
+    endif
 
     # Compute the predictions for the target using data on the closest neighbors
-    if self.type == "regression"
-        matrix prediction = compute_yhat_regression(self.target, indices_of_closest)
+    if typename(self.target) == "series"
+        matrix target = {self.target}
     else
-        matrix prediction = compute_yhat_classification(self.target,
+        matrix target = self.target
+    endif
+    if self.type == "regression"
+        matrix prediction = compute_yhat_regression(target, indices_of_closest)
+    else
+        matrix prediction = compute_yhat_classification(target,
                                                         indices_of_closest,
                                                         self.class_prediction)
     endif
@@ -784,7 +809,8 @@ function matrix target_class (const matrix target,
 end function
 
 
-function matrix indices_of_closest (const matrix distances, const int n_neighbors)
+function matrix indices_of_closest (const matrix distances, const int n_neighbors,
+                                    const bool outofsample[TRUE])
     /*
     This function calculates the indices of the closest neighbors based on the given distances.
 
@@ -799,17 +825,20 @@ function matrix indices_of_closest (const matrix distances, const int n_neighbor
           testdata record (in columns). The rows equal the number of neighbors.
     */
 
-    scalar N = rows(distances)
-    matrix indices_of_closest = mshape(NA, n_neighbors, N)
+    scalar n_testdata = rows(distances)
     matrix idx = seq(1, cols(distances))'
+    matrix indices_of_closest = mshape(NA, n_neighbors, n_testdata)
 
     # TODO: Check whether this can be improved in terms of computation
     # TODO: In principle this may be parallelized but not in this version
 
-    loop i = 1..N
-        matrix row = distances[i,]' ~ idx
-        # sort by distance in ascending order
-        matrix sorted = msortby(row, 1)[-i,]  # remove reference observation
+    loop i = 1..n_testdata
+        matrix row = distances[i,]' ~ idx   # retrieve the i-th test observation
+        matrix sorted = msortby(row, 1)
+        if outofsample == FALSE
+            sorted = sorted[-i,]  # remove reference observation (distance to itself)
+        endif
+
         matrix indices_of_closest[,i] = sorted[1:n_neighbors, 2]
     endloop
 
