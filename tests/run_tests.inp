@@ -7,44 +7,81 @@ include CvDataSplitter.gfn
 include extra.gfn
 include FEP.gfn
 
-#/*
-##### Regression + no CV + different no. of neighbors
+
+##### Regression + no CV + single neighbor
 # Open dataset etc.
 open credscore.gdt --quiet
+genr index
 # Parameters
-matrix N_NEIGHBORS = seq(1, 3)
+matrix N_NEIGHBORS = 3
 list x = Age Selfempl OwnRent
 series y = Income
-# Remove missing values and define training set
-smpl y x --no-missing --permanent
+smpl index <= 50 --restrict
 bundle Model = knn_fit(y, x, N_NEIGHBORS)
 print Model.rsq
 print Model.ess
 knn_summary(Model)
+knn_plot_score(Model)
+matrix yhat = {y} ~ Model.yhat
+matrix uhat = Model.uhat
+print yhat uhat -o --range=:5
+smpl index > 50 --restrict --replace
+series pred = knn_predict(Model, x)
+print x pred --byobs --range=:5
 
 
-##### Cross-validation for regression using "loo" strategy
+##### Regression + no CV but estimation for different no. of neighbors
+##### In this case, prediction is not possible (run CV before)
+# Open dataset etc.
 open credscore.gdt --quiet
+genr index
+# Parameters
+matrix N_NEIGHBORS = seq(1, 3)
+list x = Age Selfempl OwnRent
+series y = Income
+smpl index <= 50 --restrict
+bundle Model = knn_fit(y, x, N_NEIGHBORS)
+print Model.rsq
+print Model.ess
+knn_summary(Model)
+knn_plot_score(Model)
+matrix yhat = {y} ~ Model.yhat
+matrix uhat = Model.uhat
+print yhat uhat -o --range=:5
+
+##### Cross-validation for regression using "loo" strategy for a single neigbor
+##### prediction is possible
+open credscore.gdt --quiet
+genr index
 # Set parameters
-scalar N_NEIGHBORS = 7
+N_NEIGHBORS = 1
 string SPLITTERS = "loo"  # either "kfold", "loo"
 bundle Params = _(splitters = SPLITTERS)
 # Select features and target
 list x = Age Selfempl OwnRent
 series y = Income
+smpl index <= 50 --restrict
 # Fit the model
 bundle Model = knn_fit(y, x, N_NEIGHBORS, Params)
+print Model
 knn_summary(Model)
 Scores = Model.Scores  # nelme(array) == no. of Ks passed to knn_fit
+# knn_plot_score(Model)  # errors
+knn_plot_cvscores(Model)
 assert(nelem(Scores) == nelem(N_NEIGHBORS))
 assert(rows(Scores[1]) == $nobs)
+smpl index > 50 --restrict --replace
+series pred = knn_predict(Model, x)
+print x pred --byobs --range=:5
 
 
 ##### Cross-validation for regression using "kfold" strategy
+##### evaluating multiple neighbors
 open credscore.gdt --quiet
+genr index
 # Set parameters
-scalar N_NEIGHBORS = 7
-scalar KFOLD_NSPLITS = 2
+N_NEIGHBORS = seq(1, 3)
+scalar KFOLD_NSPLITS = 5
 string SPLITTERS = "kfold"  # either "kfold", "loo"
 bundle Params = _(splitters = SPLITTERS, kfold_nsplits = KFOLD_NSPLITS)
 # Select features and target
@@ -52,8 +89,11 @@ list x = Age Selfempl OwnRent
 series y = Income
 # Fit the model
 bundle Model = knn_fit(y, x, N_NEIGHBORS, Params)
-Scores = Model.Scores
-print Scores
+knn_summary(Model)
+print Model
+Scores = Model.Scores  # nelme(array) == no. of Ks passed to knn_fit
+knn_plot_score(Model)
+knn_plot_cvscores(Model)
 assert(nelem(Scores) == nelem(N_NEIGHBORS))
 assert(rows(Scores[1]) == KFOLD_NSPLITS)
 
@@ -75,14 +115,15 @@ print Model
 knn_summary(Model)
 Scores = Model.Scores
 matrix scores = Scores[1]
-print scores
-boxplot 2 --matrix=scores --output=display {set title "Distribution of RMSE across folds";}
+knn_plot_cvscores(Model)
+
 
 ##### Cross-validation for regression using "kfold" strategy
 ##### plus various no. of neighbors
 open credscore.gdt --quiet
+genr index
 # Set parameters
-matrix N_NEIGHBORS = seq(1, 20)
+matrix N_NEIGHBORS = seq(1, 10)
 scalar KFOLD_NSPLITS = 5
 string SPLITTERS = "kfold"  # either "kfold", "loo"
 string METRIC = "mae"
@@ -97,17 +138,17 @@ print Model
 knn_summary(Model)
 print Model.mean_scores
 knn_plot_score(Model)
-#*/
+knn_plot_cvscores(Model)
 
 
-#/*
 #####################################
 ### Multi-class Classification using cross-validation
 ### Run k-fold with 5 folds sampling
 #####################################
 open credscore.gdt --quiet
+genr index
 # Set parameters
-matrix NEIGHBORS = seq(1, 7)  # sequence of no. of neighbors to evaluate
+matrix NEIGHBORS = seq(1, 3)  # sequence of no. of neighbors to evaluate
 scalar KFOLD_NSPLITS = 5  # only relevant for splitters = "kfold"
 string SPLITTERS = "kfold"  # only either "kfold", "loo" not supported, yet
 string METRIC = "PRC"
@@ -119,61 +160,74 @@ series y = Age   # 15 classes
 # !!!Make sure, the target is recognized as being discrete!!!
 setinfo y --discrete
 
-# FIXME: Some scores increase in performance but some decrease
-# You need to compute the inverse of increasing ones before looking for
-# the minimum!
-
 # Fit the model
-
 bundle Model = knn_fit(y, x, NEIGHBORS, Params)
 knn_summary(Model)
 knn_plot_score(Model)
-print Model.Scores[1]
-print Model.Scores[4]
+knn_plot_cvscores(Model)
 print Model.mean_scores
+series pred = knn_predict(Model, x)
+print x pred --byobs --range=:5
 
-#*/
+
 
 
 ##############
 # WBG example
 ##############
+
+### NO CV + single Neighbor value -> Prediction is possible
 open \
   /home/artur/Universität/THB/Kooperationen/WBG/WBG_Datensatz_valide_NA_Werte.xlsx --quiet
 
-list x = WohnflAche Wohngebiet Haustier
-series y = Geschlecht
+varlist
+list x = WohnflAche Geschlecht Generation
+series y = Wohngebiet
+summary y --simple
 setinfo y --discrete
-
-smpl obs < 200 --restrict --permanent
-
+smpl obs < 300 --restrict --permanent
 # Parameter
-scalar N_NEIGHBORS = 2
+scalar N_NEIGHBORS = 3
 scalar SHARE_TESTSET = 1/2
 # Remove missing values
 smpl y x --no-missing --permanent
 # Define training set
 series rand = randgen(i, 0, 1)
 series trainset = (rand >= SHARE_TESTSET) ? TRUE : FALSE
-
-# No cross-validation
+smpl trainset == TRUE --restrict --replace
+smpl obs < 50 --restrict
 bundle Model = knn_fit(y, x, N_NEIGHBORS)
+print Model
 knn_summary(Model)  # Print summary of estimation
+
 series yhat = Model.yhat
-summary y yhat
-xtab y yhat
+series uhat = Model.uhat
+summary y yhat uhat
+
 print knn_scores(y, yhat, Model)
+# Testset
+smpl trainset == FALSE --restrict --replace
+series pred = knn_predict(Model, x)
+print y pred -o --range=:5
+
 
 # With cross-validation
 smpl trainset == TRUE --restrict --replace
-matrix NEIGHBORS = seq(1, 4)  # sequence of no. of neighbors to evaluate
-scalar KFOLD_NSPLITS = 3    # only relevant for splitters = "kfold"
+matrix NEIGHBORS = seq(1, 10)  # sequence of no. of neighbors to evaluate
+scalar KFOLD_NSPLITS = 5    # only relevant for splitters = "kfold"
 string SPLITTERS = "kfold"  # only either "kfold", "loo" not supported, yet
+#string METRIC = "TSS"
 bundle Params = _(kfold_nsplits = KFOLD_NSPLITS, splitters = SPLITTERS)
 bundle Model = knn_fit(y, x, NEIGHBORS, Params)
 knn_summary(Model)
 knn_plot_score(Model)
+#print Model.Scores[2]
+knn_plot_cvscores(Model)
 
+smpl trainset == FALSE --restrict --replace
+series pred = knn_predict(Model, x)
+series pred_error = y - pred
+freq pred_error --plot=display
 
 
 print "Finished all tests succesfully."
