@@ -152,7 +152,7 @@ function bundle knn_fit (const series y "Target",
 
     if inbundle(self, "Scores")
         matrix self.mean_scores = get_scores_by_neighbor(self.Scores)
-        bundle Btmp = get_optimal_score_and_k(self.mean_scores, self.metric)
+        bundle Btmp = get_optimal_score_and_k(self.mean_scores, self.metric, self.type)
         self.optimal_k = Btmp.optimal_k
         self.optimal_score = Btmp.optimal_score
     endif
@@ -385,7 +385,8 @@ end function
 
 
 function bundle get_optimal_score_and_k (const matrix mean_scores,
-                                         const string metric)
+                                         const string metric,
+                                         const string type)
     /* Based on cross-validated mean scores, retrieve the optimal number of
     neighbors based on some metric. */
 
@@ -393,7 +394,13 @@ function bundle get_optimal_score_and_k (const matrix mean_scores,
     errorif($error, "Unknown metric name passed.")
 
     bundle B = empty
-    scalar B.optimal_k = iminc(mean_scores[,position_criteria], TRUE)
+    if type == "classification"
+        matrix corrected_mean_scores = correct_class_metrics(mean_scores[,position_criteria],
+                                                             metric)
+    else
+        matrix corrected_mean_scores = mean_scores[,position_criteria]
+    endif
+    scalar B.optimal_k = iminc(corrected_mean_scores, TRUE)
     scalar B.optimal_score = NA
 
     if !ok(B.optimal_k)
@@ -775,3 +782,32 @@ function matrix indices_of_closest (const matrix distances, const int n_neighbor
     return indices_of_closest
 end function
 
+
+function matrix correct_class_metrics (const matrix Scores,
+                                       const string metric)
+    /* This function computes the correct classification metrics by adjusting the
+    sign of the scores based on predefined criteria. It is designed to work within
+    the context of classification tasks, where different metrics might need to be
+    interpreted differently (e.g., a higher score might be better for some metrics
+    but worse for others). */
+
+    bundle Map = _(POD = "negative",
+                   POFD = "unchanged",
+                   HR = "negative",
+                   FAR = "unchanged",
+                   CSI = "negative",
+                   OR = "negative",
+                   BIAS = "negative",
+                   TSS = "negative",
+                   HSS = "negative",
+                   ETS = "unchanged",
+                   PRC = "negative",
+                   FSC = "negative")
+
+    scalar pos = inbundle(Map, metric)
+    errorif(!ok(pos), "Unknown metric name passed.")
+
+    matrix ret = Scores .* (Map[metric] == "positive" ? 1 : -1)
+
+    return ret
+end function
