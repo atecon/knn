@@ -7,7 +7,7 @@ Please report any issues or suggestions on the Gretl mailing list or GitHub page
 
 # Public Functions
 
-### `knn_fit(train_data, train_labels, n_neighbors)`
+### `knn_fit(train_data, train_labels, n_neighbors, opts[null])`
 
 This function fits the KNN model to the training data.
 
@@ -98,6 +98,8 @@ A fitted KNN model object stored in a `bundle`. The bundle includes the followin
 - `sample_t2`: *int*, The index of the last observation in the training set.
 - `Scores`: *matrices*, Array of matrices containing the scores achieved by the model on the validation data. Each page refers to a different number of neighbors (as specified by `n_neighbors`) evaluated. Rows represent the k-fold splits, and columns represent the scoring metrics.
 - `type`: *string*, The type of the model (classification or regression).
+- `uhat`: *matrix*, The residuals of the model (only in case of no cross-validation).
+- `yhat`: *matrix*, The fitted values of the model (only in case of no cross-validation).
 
 
 
