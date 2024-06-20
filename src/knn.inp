@@ -244,7 +244,7 @@ function void knn_plot_cvscores (const bundle self,
                                self.optimal_k, self.splitters, rows(scores))
 
 
-        if sum(meanc(scores) .= 0)  # check for constants in which case the boxplot fails to be drawn
+        if sum(meanc(scores, TRUE) .= 0)  # check for constants in which case the boxplot fails to be drawn
             gnuplot --matrix=scores --time-series --output="@fname" \
             {set grid; set xlabel "neighbors" font ",13";\
              set ylabel "Distribution of @metric across folds" font ",13";\
@@ -323,7 +323,7 @@ function matrix get_scores_by_neighbor (const matrices Scores)
     matrix mean_score_by_neighbor = mshape(NA, npages, ncols)
 
     loop i=1..ncols
-        matrix mean_score_by_neighbor[,i] = meanc(drill(Scores, , i))'
+        matrix mean_score_by_neighbor[,i] = meanc(drill(Scores, null, i), TRUE)'
     endloop
 
     cnameset(mean_score_by_neighbor, clabels)
@@ -457,6 +457,7 @@ function bundle get_optimal_score_and_k (const matrix mean_scores,
     else
         matrix corrected_mean_scores = mean_scores[,position_criteria]
     endif
+
     scalar B.optimal_k = iminc(corrected_mean_scores, TRUE)
     scalar B.optimal_score = NA
 
