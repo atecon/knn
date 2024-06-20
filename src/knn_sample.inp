@@ -1,97 +1,127 @@
 clear
 set verbose off
 include knn.gfn
-/*
+set seed 1234
+
 open credscore.gdt --quiet
 
-# Select an example to run
-EXAMPLE = 2
-# Parameter
-scalar N_NEIGHBORS = 5  # no. of neighbors
-
-if EXAMPLE == 1  # regression
-    list x = Age MDR OwnRent
-    series y = Income
-
-elif EXAMPLE == 2  # classification with majority voting
-    list x = Age Income
-    series y = Acc
-    setinfo y --discrete
-
-elif EXAMPLE == 3  # classification with probability predictions
-    list x = Age Income
-    series y = Acc
-    setinfo y --discrete
-    bundle Params = _(class_prediction = "probability",
-                      distance_type = "manhatten")
-endif
-
-# Remove missing values and define training set
-smpl y x --no-missing --permanent
+# Remove missing values
+smpl --no-missing --permanent
+# Define arbitrary training set
 genr index
 series trainset = (index <= 50) ? TRUE : FALSE
 
-# Activate training set
-smpl trainset == TRUE --restrict
+# Parameters
+N_NEIGHBORS = 3   # no. of neighbors (fixed)
 
-# Euclidean distance (default)
-# ============================
-if exists(Params)
-    bundle Model = knn_fit(y, x, N_NEIGHBORS, Params)
-else
+# Select an example to run
+EXAMPLE = 4
+
+
+if EXAMPLE == 1   # regression
+    list x = Age MDR OwnRent
+    series y = Income
+    smpl trainset == TRUE --restrict
     bundle Model = knn_fit(y, x, N_NEIGHBORS)
+
+    knn_summary(Model)  # Print summary of estimation
+    series yhat = Model.yhat
+    series uhat = Model.uhat
+    print y yhat uhat --byobs --range=1:10
+
+    print "In-sample scores"
+    print knn_scores(y, yhat, Model)
+
+    # in-sample prediction
+    series prediction = knn_predict(Model, x)
+    summary y prediction --simple
+
+elif EXAMPLE == 2  # binary classification with majority voting
+    list x = Age Income
+    series y = Acc
+    setinfo y --discrete
+    bundle Model = knn_fit(y, x, N_NEIGHBORS)
+
+    knn_summary(Model)  # Print summary of estimation
+    series yhat = Model.yhat
+    series uhat = Model.uhat
+    print y yhat uhat --byobs --range=1:10
+    print "In-sample scores"
+    print knn_scores(y, yhat, Model)
+
+    # in-sample prediction
+    series prediction = knn_predict(Model, x)
+    summary y prediction --simple
+
+
+elif EXAMPLE == 3
+    #####################################
+    ### Regression using cross-validation for
+    ### computing the optimal number of neighbors
+    ### Run k-fold sampling with 5 folds
+    #####################################
+    list x = Age MDR OwnRent
+    series y = Income
+
+    # Set parameters
+    matrix NEIGHBORS = seq(1,4)  # sequence of no. of neighbors to evaluate
+    scalar KFOLD_NSPLITS = 5     # only relevant for splitters = "kfold"
+    string SPLITTERS = "kfold"   # either "kfold", "loo"
+    string METRIC = "mae"        # metric to optimize, default: rmse
+    bundle Params = _(splitters = SPLITTERS,
+                      kfold_nsplits = KFOLD_NSPLITS,
+                      scoring_regression = METRIC)
+
+    # Set training set: just some random sample (not stratified!)
+    series trainset = randgen(i, 0, 1) <= 0.5 ? TRUE : FALSE
+    smpl trainset == TRUE --restrict
+    bundle Model = knn_fit(y, x, NEIGHBORS, Params)
+    print Model
+    knn_summary(Model)
+    knn_plot_score(Model)
+    knn_plot_cvscores(Model)
+
+    # Activate testset and predict out-of-sample
+    smpl trainset == FALSE --restrict --replace
+    series prediction = knn_predict(Model, x)
+    # Out-of-sample scores
+    print "Out-of-sample scores"
+    print knn_scores(y, prediction, Model)
+    print y prediction -o --range=:15
+
+
+elif EXAMPLE == 4
+    #####################################
+    ### 3-class classification using cross-validation for
+    ### computing the optimal number of neighbors
+    ### Run k-fold sampling with 5 folds
+    #####################################
+    list x = MDR OwnRent Acc
+    # Construct target with three arbitrary classes
+    series y = 0
+    y = Age >= 30 ? 1 : y
+    y = Age >= 40 ? 2 : y
+    setinfo y --discrete  # tell gretl that's a categorical variable
+
+    # Set parameters
+    matrix NEIGHBORS = seq(1,4)  # sequence of no. of neighbors to evaluate
+    scalar KFOLD_NSPLITS = 5     # only relevant for splitters = "kfold"
+    string SPLITTERS = "kfold"   # either "kfold", "loo"
+    string METRIC = "PRC"        # metric to optimize, default: rmse
+    bundle Params = _(splitters = SPLITTERS,
+                      kfold_nsplits = KFOLD_NSPLITS,
+                      scoring_regression = METRIC)
+
+    # Set training set: just some random sample (not stratified!)
+    series trainset = randgen(i, 0, 1) <= 0.5 ? TRUE : FALSE
+    smpl trainset == TRUE --restrict
+    bundle Model = knn_fit(y, x, NEIGHBORS, Params)
+    print Model
+    knn_summary(Model)
+    knn_plot_cvscores(Model)
+
+    # Activate testset and predict out-of-sample
+    smpl trainset == FALSE --restrict --replace
+    series prediction = knn_predict(Model, x)
+    print y prediction -o --range=:15
 endif
-
-knn_summary(Model)  # Print summary of estimation
-series yhat = Model.yhat
-series uhat = Model.uhat
-
-if EXAMPLE == 1
-    series diagonal = y
-    gnuplot yhat diagonal y --with-lines=diagonal --output=display \
-      {set yrange[0:10]; set xrange[0:10];}
-
-    freq uhat --normal --plot=display
-
-elif EXAMPLE == 2
-    if Model.class_prediction == "majority"
-        gnuplot Age Avgexp yhat --dummy --output=display --fit=none
-    endif
-endif
-
-# In-sample scores
-print "In-sample scores"
-print knn_scores(y, yhat, Model)
-
-# Activate testset and predict out-of-sample
-smpl trainset == FALSE --restrict --replace
-series prediction = knn_predict(Model, x)
-# Out-of-sample scores
-print "Out-of-sample scores"
-print knn_scores(y, prediction, Model)
-#print y prediction -o --range=:15
-*/
-
-
-#####################################
-### Regression using cross-validation
-# Run k-fold with 5 folds sampling
-#####################################
-open credscore.gdt --quiet
-# Set parameters
-matrix NEIGHBORS = seq(1,4)  # sequence of no. of neighbors to evaluate
-scalar KFOLD_NSPLITS = 5  # only relevant for splitters = "kfold"
-string SPLITTERS = "kfold"  # either "kfold", "loo"
-string METRIC = "mae"   # metric to optimize
-bundle Params = _(splitters = SPLITTERS, kfold_nsplits = KFOLD_NSPLITS,
-                  scoring_regression = METRIC)
-# Select features and target
-list x = Age Selfempl OwnRent
-series y = Income
-# Fit the model
-bundle Model = knn_fit(y, x, NEIGHBORS, Params)
-print Model
-knn_summary(Model)
-knn_plot_score(Model)
-
-
