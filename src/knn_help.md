@@ -21,12 +21,12 @@ This function fits the KNN model to the training data.
 The `opts` bundle can contain the following options:
 
 - `distance_type`: *string*, The distance metric to use for the KNN algorithm. Default is "euclidean". Possible values are the ones supported by Gretl's built-in function `distance()` (see `help distance`).
-- `class_prediction`: *string*, The method to use for predicting classes in a classification task. Default is "majority". Possible values are
+- `class_prediction`: *string*, The method to use for predicting classes in a classification task. Default is "majority". <!-- Possible values are-->
 
   + "majority"
-  + "probability".
+<!--  + "probability" (only for binary classification, currently). -->
 
-  Majority returns the most common class among the neighbors, while probability returns the proportion of neighbors that belong to the class most common among the neighbors.
+  Majority returns the most common class among the neighbors.<!--, while probability returns the proportion of neighbors that belong to the class most common among the neighbors.-->
 
 - `scoring_regression`: *string*, The method to use for scoring the model in a regression task. Default is "rmse". Possible values are:
 
