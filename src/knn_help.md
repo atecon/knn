@@ -107,7 +107,7 @@ A fitted KNN model object stored in a `bundle`. The bundle includes the followin
 
 ### `knn_predict(model, X)`
 
-This function uses a fitted KNN model to make predictions on the test data.
+This function uses a fitted KNN model to make predictions on the test data. The function requires that you either have requested to train a model with a single number of neighbors or have selected the optimal number of neighbors using cross-validation before, as the model object must contain the optimal number of neighbors. Otherwise, the function will return an error.
 
 *Parameters:*
 
