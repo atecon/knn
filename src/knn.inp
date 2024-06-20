@@ -84,14 +84,13 @@ function bundle knn_fit (const series y "Target",
     string self.depvar = argname(y)
     strings self.parnames = varnames(xlist)
     string self.type = getinfo(y).discrete == TRUE ? "classification" : "regression"
-    if self.type == "classification"
-        string self.metric = self.scoring_classification
-    else
-        string self.metric = self.scoring_regression
-    endif
+    string self.metric = get_metric_name(self)
 
-    errorif(self.splitters == "loo" && self.type == "classification",
-            "Leave-one-out CV (loo) not supportet for classification, yet. Please use 'kfold', instead.")
+    errorif(self.class_prediction == "probability", "Computing probabilities not yet supportted.")
+    check_metric_probclass(self.type, self.metric, self.class_prediction)
+
+    errorif_classification_loo(self.type, self.splitters)
+    errorif_multiclass_prob(y, self.class_prediction, self.type)
 
     matrix target = {y}
     matrix mX = {xlist}
@@ -123,7 +122,7 @@ function bundle knn_fit (const series y "Target",
                 scalar self.rsq[nb] = get_rsq(self.target, self.yhat)
                 scalar self.ess[nb] = sst(self.uhat)
                 rlabel_rsq_ess[nb] = sprintf("k=%d", neighbor_values[nb])
-            elif self.type == "regression"
+            elif self.type == "classification"
                 # TODO: implement support for classification?
             endif
         else
@@ -573,15 +572,6 @@ function matrix fcstats_majority (const matrix actual,
     * return: The matrix of evaluation statistics, including false rate, hit rate, and Kuipers score.
     */
 
-    /* TODO: Test first whether metrics are correctly computed
-    bundle B = _(yup = actual, fcup = prediction)
-    doKS(&B)
-    matrix fcstats = B.KSfalse | B.KShit | B.KSstat
-    rnameset(fcstats, defarray("false-rate", "hit-rate", "Kuipers-score"))
-    */
-
-    # TODO: Results do not coincide. Check which function returns wrong values.
-    # TODO: Currently fails in case of loo-CV as only a single record is predicted.
     matrix scores = scores2x2(actual ~ prediction, FALSE)
 
     return scores
@@ -803,7 +793,9 @@ function matrix correct_class_metrics (const matrix Scores,
                    HSS = "negative",
                    ETS = "unchanged",
                    PRC = "negative",
-                   FSC = "negative")
+                   FSC = "negative",
+                   QPS = "negative",
+                   LPS = "negative")
 
     scalar pos = inbundle(Map, metric)
     errorif(!ok(pos), "Unknown metric name passed.")
@@ -811,4 +803,43 @@ function matrix correct_class_metrics (const matrix Scores,
     matrix ret = Scores .* (Map[metric] == "positive" ? 1 : -1)
 
     return ret
+end function
+
+
+function string get_metric_name (const bundle self)
+    if self.type == "classification"
+        string metric = self.scoring_classification
+    else
+        string metric = self.scoring_regression
+    endif
+
+    return metric
+end function
+
+function void check_metric_probclass (const string type,
+                                      const string metric,
+                                      const string class_prediction)
+
+    if type == "classification"
+        if metric == "QPS" && class_prediction != "probability"
+            printf "\nERROR: The metric '%s' is only supported for probability-based classification.\n", metric
+            errorif(TRUE, sprintf("Please set 'class_prediction' to 'probability' to use this metric.\n\n"))
+        elif class_prediction == "probability" && (metric != "QPS" && metric != "LPS")
+            errorif(TRUE, "For binary classification, only 'QPS' and 'LPS' are supported. Please use another metric")
+        endif
+    endif
+end function
+
+function void errorif_multiclass_prob (const series y,
+                                       const string class_prediction,
+                                       const string type)
+    errorif(type == "classification" && nelem(values(y)) > 2 && \
+            class_prediction == "probability",
+            "Probabilities are only supported for binary classification, yet.")
+end function
+
+function void errorif_classification_loo (const string type,
+                                            const string splitters)
+    errorif(splitters == "loo" && type == "classification",
+            "Leave-one-out CV (loo) not supportet for classification, yet. Please use 'kfold', instead.")
 end function
