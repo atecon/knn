@@ -5,8 +5,9 @@ set assert stop
 include "./src/knn.inp" --force
 include CvDataSplitter.gfn
 include extra.gfn
+include FEP.gfn
 
-/*
+#/*
 ##### Regression + no CV + different no. of neighbors
 # Open dataset etc.
 open credscore.gdt --quiet
@@ -96,13 +97,13 @@ print Model
 knn_summary(Model)
 print Model.mean_scores
 knn_plot_score(Model)
-*/
+#*/
 
 
 #/*
 #####################################
-### Classification using cross-validation
-# Run k-fold with 5 folds sampling
+### Multi-class Classification using cross-validation
+### Run k-fold with 5 folds sampling
 #####################################
 open credscore.gdt --quiet
 # Set parameters
@@ -114,7 +115,7 @@ bundle Params = _(splitters = SPLITTERS, kfold_nsplits = KFOLD_NSPLITS,
                   scoring_classification = METRIC)
 # Select features and target
 list x = Income Age Selfempl OwnRent
-series y = Age
+series y = Age   # 15 classes
 # !!!Make sure, the target is recognized as being discrete!!!
 setinfo y --discrete
 
@@ -123,12 +124,14 @@ setinfo y --discrete
 # the minimum!
 
 # Fit the model
+
 bundle Model = knn_fit(y, x, NEIGHBORS, Params)
 knn_summary(Model)
 knn_plot_score(Model)
 print Model.Scores[1]
 print Model.Scores[4]
 print Model.mean_scores
+
 #*/
 
 
