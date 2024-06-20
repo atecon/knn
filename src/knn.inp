@@ -88,9 +88,12 @@ function bundle knn_fit (const series y "Target",
     else
         string self.metric = self.scoring_regression
     endif
+
+    errorif(self.splitters == "loo" && self.type == "classification",
+            "Leave-one-out CV (loo) not supportet for classification, yet. Please use 'kfold', instead.")
+
     matrix target = {y}
     matrix mX = {xlist}
-
     matrix neighbor_values = values(vec(n_neighbors))
     scalar n_neighbor_values = nelem(neighbor_values)
 
