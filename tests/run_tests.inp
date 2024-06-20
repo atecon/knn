@@ -6,6 +6,7 @@ include "./src/knn.inp" --force
 include CvDataSplitter.gfn
 include extra.gfn
 
+/*
 ##### Regression + no CV + different no. of neighbors
 # Open dataset etc.
 open credscore.gdt --quiet
@@ -34,7 +35,6 @@ series y = Income
 bundle Model = knn_fit(y, x, N_NEIGHBORS, Params)
 knn_summary(Model)
 Scores = Model.Scores  # nelme(array) == no. of Ks passed to knn_fit
-print Scores
 assert(nelem(Scores) == nelem(N_NEIGHBORS))
 assert(rows(Scores[1]) == $nobs)
 
@@ -73,8 +73,9 @@ bundle Model = knn_fit(y, x, N_NEIGHBORS, Params)
 print Model
 knn_summary(Model)
 Scores = Model.Scores
-print Scores
-knn_plot_score(Model)
+matrix scores = Scores[1]
+print scores
+boxplot 2 --matrix=scores --output=display {set title "Distribution of RMSE across folds";}
 
 ##### Cross-validation for regression using "kfold" strategy
 ##### plus various no. of neighbors
@@ -95,30 +96,81 @@ print Model
 knn_summary(Model)
 print Model.mean_scores
 knn_plot_score(Model)
+*/
 
 
-
-
+#/*
 #####################################
 ### Classification using cross-validation
 # Run k-fold with 5 folds sampling
 #####################################
 open credscore.gdt --quiet
 # Set parameters
-matrix NEIGHBORS = seq(1,4)  # sequence of no. of neighbors to evaluate
+matrix NEIGHBORS = seq(1, 7)  # sequence of no. of neighbors to evaluate
 scalar KFOLD_NSPLITS = 5  # only relevant for splitters = "kfold"
-string SPLITTERS = "kfold"  # either "kfold", "loo"
-bundle Params = _(splitters = SPLITTERS, kfold_nsplits = KFOLD_NSPLITS)
+string SPLITTERS = "kfold"  # only either "kfold", "loo" not supported, yet
+string METRIC = "PRC"
+bundle Params = _(splitters = SPLITTERS, kfold_nsplits = KFOLD_NSPLITS,
+                  scoring_classification = METRIC)
 # Select features and target
 list x = Income Age Selfempl OwnRent
-series y = Acc
+series y = Age
 # !!!Make sure, the target is recognized as being discrete!!!
 setinfo y --discrete
+
+# FIXME: Some scores increase in performance but some decrease
+# You need to compute the inverse of increasing ones before looking for
+# the minimum!
 
 # Fit the model
 bundle Model = knn_fit(y, x, NEIGHBORS, Params)
 knn_summary(Model)
 knn_plot_score(Model)
+print Model.Scores[1]
+print Model.Scores[4]
+print Model.mean_scores
+#*/
+
+
+##############
+# WBG example
+##############
+open \
+  /home/artur/Universität/THB/Kooperationen/WBG/WBG_Datensatz_valide_NA_Werte.xlsx --quiet
+
+list x = WohnflAche Wohngebiet Haustier
+series y = Geschlecht
+setinfo y --discrete
+
+smpl obs < 200 --restrict --permanent
+
+# Parameter
+scalar N_NEIGHBORS = 2
+scalar SHARE_TESTSET = 1/2
+# Remove missing values
+smpl y x --no-missing --permanent
+# Define training set
+series rand = randgen(i, 0, 1)
+series trainset = (rand >= SHARE_TESTSET) ? TRUE : FALSE
+
+# No cross-validation
+bundle Model = knn_fit(y, x, N_NEIGHBORS)
+knn_summary(Model)  # Print summary of estimation
+series yhat = Model.yhat
+summary y yhat
+xtab y yhat
+print knn_scores(y, yhat, Model)
+
+# With cross-validation
+smpl trainset == TRUE --restrict --replace
+matrix NEIGHBORS = seq(1, 4)  # sequence of no. of neighbors to evaluate
+scalar KFOLD_NSPLITS = 3    # only relevant for splitters = "kfold"
+string SPLITTERS = "kfold"  # only either "kfold", "loo" not supported, yet
+bundle Params = _(kfold_nsplits = KFOLD_NSPLITS, splitters = SPLITTERS)
+bundle Model = knn_fit(y, x, NEIGHBORS, Params)
+knn_summary(Model)
+knn_plot_score(Model)
+
 
 
 print "Finished all tests succesfully."
