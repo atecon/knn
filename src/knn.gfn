@@ -3,7 +3,7 @@
 <gretl-function-package name="knn" minver="2024a">
 <author email="atecon@posteo.de">Artur Tarassow</author>
 <version>0.1</version>
-<date>2024-05-21</date>
+<date>2024-06-20</date>
 <description>KNN regression and classification estimator</description>
 <tags>C13 C52</tags>
 <help filename="knn_help.md">
@@ -11,12 +11,12 @@
 
 The KNN (K-Nearest Neighbors) package is a powerful tool for performing KNN classification and regression tasks. It provides a set of functions that allow you to fit a model, make predictions, get scores, summarize the model, and plot the scores.
 
-Please report any issues or suggestions on the [GitHub page](https://github.com/atecon/knn) or Gretl mailing list.
+Please report any issues or suggestions on the Gretl mailing list or GitHub page: https://github.com/atecon/knn .
 
 
 # Public Functions
 
-### `knn_fit(train_data, train_labels, n_neighbors)`
+### `knn_fit(train_data, train_labels, n_neighbors, opts[null])`
 
 This function fits the KNN model to the training data.
 
@@ -30,12 +30,12 @@ This function fits the KNN model to the training data.
 The `opts` bundle can contain the following options:
 
 - `distance_type`: *string*, The distance metric to use for the KNN algorithm. Default is &quot;euclidean&quot;. Possible values are the ones supported by Gretl's built-in function `distance()` (see `help distance`).
-- `class_prediction`: *string*, The method to use for predicting classes in a classification task. Default is &quot;majority&quot;. Possible values are
+- `class_prediction`: *string*, The method to use for predicting classes in a classification task. Default is &quot;majority&quot;. &lt;!-- Possible values are--&gt;
 
   + &quot;majority&quot;
-  + &quot;probability&quot;.
+&lt;!--  + &quot;probability&quot; (only for binary classification, currently). --&gt;
 
-  Majority returns the most common class among the neighbors, while probability returns the proportion of neighbors that belong to the class most common among the neighbors.
+  Majority returns the most common class among the neighbors.&lt;!--, while probability returns the proportion of neighbors that belong to the class most common among the neighbors.--&gt;
 
 - `scoring_regression`: *string*, The method to use for scoring the model in a regression task. Default is &quot;rmse&quot;. Possible values are:
 
@@ -49,7 +49,9 @@ The `opts` bundle can contain the following options:
 
   + and others supported by Gretl's built-in function `fcstats()` (see `help fcstats`).
 
-- `scoring_classification`: *string*, The method to use for scoring the model in a classification task. Default is &quot;FSC&quot; referring to the F1-score which balances recall and precision equally and reduces to the simpler equation 2TP/(2TP + FP + FN). Alternatives are:
+- `scoring_classification`: *string*, The method to use for scoring the model in a classification task. Default is &quot;PRC&quot; referring to precision which is the number of hits over the sum of hits plus false, h/(h+f).
+&lt;!-- Default is &quot;FSC&quot; referring to the F1-score which balances recall and precision equally and reduces to the simpler equation 2TP/(2TP + FP + FN). --&gt;
+  Alternatives are:
 
 
   + &quot;POD&quot;: Prob. of detection
@@ -78,9 +80,11 @@ The `opts` bundle can contain the following options:
 
 - `splitters`: *string*, The method to use for splitting the data into training and test sets. Default is &quot;none&quot; implying that the data is not split and no cross-validation is performed. Possible values are:
 
+  + &quot;none&quot;: no cross-validation is performed.
+
   + &quot;kfold&quot;: perform k-fold cross-validation with the number of folds specified by the `kfold_nsplits` parameter (default: 5).
 
-  + &quot;loo&quot;: perform leave-one-out cross-validation.
+  + &quot;loo&quot;: perform leave-one-out cross-validation; only for regression.
 
   + &quot;recwin&quot;: perform recursive window cross-validation with the window size specified by the &quot;win_size&quot; parameter (default: 10).
 
@@ -93,22 +97,26 @@ The `opts` bundle can contain the following options:
 
 A fitted KNN model object stored in a `bundle`. The bundle includes the following elements:
 
+- `depvar`: *string*, The dependent variable used for fitting the model.
+- `features`: *matrix*, The features used for fitting the model; if `stdize_features` is set to `TRUE`, the features are standardized.
+- `mean_scores`: *matrix*, The mean scores achieved by the model on the validation data for each number of neighbors (only if cross-validation is performed). Rows represent the number of neighbors used, and columns represent the scoring metrics.
+- `n_training_sets`: *int*, The number of training sets used for cross-validation (only if cross-validation is performed).
 - `nobs`: *int*, Number of observations in the training and validation data.
 - `optimal_k`: *int*, The optimal number of neighbors selected by the cross-validation procedure (only if cross-validation is performed).
 - `optimal_score`: *scalar*, The optimal score achieved by the model on the validation data (only if cross-validation is performed).
+- `parnames`: *string array*, The names of the features used for fitting the model.
 - `sample_t1`: *int*, The index of the first observation in the training set.
 - `sample_t2`: *int*, The index of the last observation in the training set.
-- `features`: *matrix*, The features used for fitting the model.
-- `mean_scores`: *matrix*, The mean scores achieved by the model on the validation data for each number of neighbors (only if cross-validation is performed). Rows represent the number of neighbors used, and columns represent the scoring metrics.
-- `depvar`: *string*, The dependent variable used for fitting the model.
-- `parnames`: *string array*, The names of the features used for fitting the model.
+- `Scores`: *matrices*, Array of matrices containing the scores achieved by the model on the validation data. Each page refers to a different number of neighbors (as specified by `n_neighbors`) evaluated. Rows represent the k-fold splits, and columns represent the scoring metrics.
 - `type`: *string*, The type of the model (classification or regression).
-- `Scores`: *matrices*, Array of matrices containing the scores achieved by the model on the validation data for each number of neighbors (only if cross-validation is performed). Rows represent the k-fold splits, and columns represent the scoring metrics. Each matrix corresponds to a different number of neighbors.
+- `uhat`: *matrix*, The residuals of the model (only in case of no cross-validation); rows: no. of observations, columns: no. of neighbors evaluated.
+- `yhat`: *matrix*, The fitted values of the model (only in case of no cross-validation); rows: no. of observations, columns: no. of neighbors evaluated.
+
 
 
 ### `knn_predict(model, X)`
 
-This function uses a fitted KNN model to make predictions on the test data.
+This function uses a fitted KNN model to make predictions on the test data. The function requires that you either have requested to train a model with a single number of neighbors or have selected the optimal number of neighbors using cross-validation before, as the model object must contain the optimal number of neighbors. Otherwise, the function will return an error.
 
 *Parameters:*
 
@@ -122,7 +130,7 @@ This function uses a fitted KNN model to make predictions on the test data.
 
 ### `knn_scores(actual, pred, model)`
 
-This function calculates the accuracy score (for classification tasks) or the mean squared error (for regression tasks) of the KNN model.
+This function calculates the scores of the model prediction.
 
 *Parameters:*
 
@@ -150,7 +158,7 @@ This function provides a summary of the KNN model.
 
 ### `knn_plot_score(model, filename[null])`
 
-This function generates a plot showing the mean performance (across all cross-validation iterations) of the KNN model as a function of the number of neighbors.
+This function generates a plot showing the mean performance (across all cross-validation iterations) of the KNN model as a function of the number of neighbors. Only available if cross-validation is performed. The plot shows the mean of the selected metric (e.g., RMSE, MAE, etc.) across all cross-validation iterations for each number of neighbors evaluated
 
 *Parameters:*
 
@@ -161,6 +169,19 @@ This function generates a plot showing the mean performance (across all cross-va
 
 - A plot showing the model's performance.
 
+
+### `knn_plot_cvscores(model, filename[null])`
+
+This function generates a plot showing the distribution of the performances across folds as a function of the number of neighbors. Only available if cross-validation is performed. The plot shows a boxplot of the selected metric (e.g., RMSE, MAE, etc.) across folds for each number of neighbors evaluated.
+
+*Parameters:*
+
+- `model`: The fitted KNN model.
+- `filename`: *string*, The name of the file to save the plot to. If not provided, the plot is displayed in the Gretl GUI.
+
+**Returns:**
+
+- A plot showing the model's performance.
 
 # Change Log
 
@@ -189,6 +210,7 @@ list L = y xlist
 errorif(sum(missing(L)), &quot;Some  have missing values. Please drop these first.&quot;)
 errorif($nobs &lt;= n_neighbors, &quot;Number of rows must exceed number of neighbors.&quot;)
 errorif(typename(n_neighbors) != &quot;scalar&quot; &amp;&amp; typename(n_neighbors) != &quot;matrix&quot;, &quot;Parameter 'n_neighbors' must bei either of type scalar or matrix.&quot;)
+errorif(isconst(y) == TRUE, &quot;Dependent variable is constant. Abort.&quot;)
 
 if !exists(opts)
   bundle opts = defbundle()
@@ -199,18 +221,25 @@ self.distance_type = tolower(self.distance_type)
 string self.depvar = argname(y)
 strings self.parnames = varnames(xlist)
 string self.type = getinfo(y).discrete == TRUE ? &quot;classification&quot; : &quot;regression&quot;
-if self.type == &quot;classification&quot;
-  string self.metric = self.scoring_classification
-else
-  string self.metric = self.scoring_regression
-endif
-matrix target = {y}
-matrix mX = {xlist}
+string self.metric = get_metric_name(self)
 
+errorif(self.class_prediction == &quot;probability&quot;, &quot;Computing probabilities not yet supportted.&quot;)
+check_metric_probclass(self.type, self.metric, self.class_prediction)
+
+errorif_classification_loo(self.type, self.splitters)
+errorif_multiclass_prob(y, self.class_prediction, self.type)
+
+series self.target = y
+matrix my = {y}
+matrix mX = {xlist}
+scalar self.n_features = cols(mX)
+scalar self.nobs_features = rows(mX)
 matrix neighbor_values = values(vec(n_neighbors))
 scalar n_neighbor_values = nelem(neighbor_values)
 
 if self.splitters == &quot;none&quot;
+  matrix self.yhat = mshape(NA, self.nobs_features, n_neighbor_values)
+  matrix self.uhat = mshape(NA, self.nobs_features, n_neighbor_values)
   if self.type == &quot;regression&quot;
     matrix self.ess = mshape(NA, n_neighbor_values, 1)
     matrix self.rsq = mshape(NA, n_neighbor_values, 1)
@@ -219,34 +248,41 @@ if self.splitters == &quot;none&quot;
     string clabel_ess = &quot;ess&quot;
   endif
 else
+  # each page refers to different number of folds
   matrices self.Scores = array(n_neighbor_values)
 endif
 
+matrix self.features = prepare_features(mX, self.stdize_features)
+
 loop nb=1..n_neighbor_values
   #printf &quot;\nStart analysis for k = %d neighbors.\n&quot;, neighbor_values[nb]
-  scalar self.n_neighbors = neighbor_values[nb] # # add to self
+  scalar self.n_neighbors = neighbor_values[nb]
 
   if self.splitters == &quot;none&quot;
-    knn_compute(target, mX, &amp;self)
-    matrix self.uhat = self.target - self.yhat
+    # Standardization is done using the whole dataset
+    matrix self.yhat[,nb] = knn_compute(self, my, self.features)
+    matrix self.uhat[,nb] = my - self.yhat[,nb]
 
     if self.type == &quot;regression&quot;
-      # TODO: also valid for classification?
-      scalar self.rsq[nb] = get_rsq(self.target, self.yhat)
-      scalar self.ess[nb] = sst(self.uhat)
+      scalar self.rsq[nb] = get_rsq(my, self.yhat[,nb])
+      scalar self.ess[nb] = sst(self.uhat[,nb])
       rlabel_rsq_ess[nb] = sprintf(&quot;k=%d&quot;, neighbor_values[nb])
+    elif self.type == &quot;classification&quot;
+      # TODO: implement support for classification?
     endif
   else
-    matrix self.features = mX
+    #matrix self.features = mX
     bundle model = self
-    knnCV(target, mX, &amp;model)
+    knnCV(my, mX, &amp;model)
     self.Scores[nb] = model.Scores
+    if nb == 1
+      self.n_training_sets = model.n_training_sets
+    endif
   endif
-
   #printf &quot;\nFinished analysis for k = %d neighbors.\n&quot;, neighbor_values[nb]
 endloop
 
-# overwrite the temporary value
+# Overwrite the temporary scalar value by the matrix holding all distinct values evaluated
 delete self.n_neighbors
 self.n_neighbors = n_neighbors
 
@@ -261,7 +297,7 @@ endif
 
 if inbundle(self, &quot;Scores&quot;)
   matrix self.mean_scores = get_scores_by_neighbor(self.Scores)
-  bundle Btmp = get_optimal_score_and_k(self.mean_scores, self.metric)
+  bundle Btmp = get_optimal_score_and_k(self.mean_scores, self.metric, self.type)
   self.optimal_k = Btmp.optimal_k
   self.optimal_score = Btmp.optimal_score
 endif
@@ -311,13 +347,23 @@ assert(rows(distances) ==  nrows_X)
 assert(cols(distances) == rows(self.features))
 
 # Compute the indices for each training record which are the closest to the test record
-matrix indices_of_closest = indices_of_closest(distances, self.n_neighbors)
+if inbundle(self, &quot;optimal_k&quot;)
+  matrix indices_of_closest = indices_of_closest(distances, self.optimal_k)
+else
+  errorif(nelem(self.n_neighbors) &gt; 1, sprintf(&quot;You passed a vector of neighbors to evaluate.\n Please run CV first to estimate the optimal no. of neighbors before doing prediction.&quot;))
+  matrix indices_of_closest = indices_of_closest(distances, self.n_neighbors)
+endif
 
 # Compute the predictions for the target using data on the closest neighbors
-if self.type == &quot;regression&quot;
-  matrix prediction = compute_yhat_regression(self.target, indices_of_closest)
+if typename(self.target) == &quot;series&quot;
+  matrix target = {self.target}
 else
-  matrix prediction = compute_yhat_classification(self.target, indices_of_closest, self.class_prediction)
+  matrix target = self.target
+endif
+if self.type == &quot;regression&quot;
+  matrix prediction = compute_yhat_regression(target, indices_of_closest)
+else
+  matrix prediction = compute_yhat_classification(target, indices_of_closest, self.class_prediction)
 endif
 
 return prediction
@@ -388,7 +434,7 @@ return fcstats
 printf &quot;\nK-Nearest Neighbors Model Summary\n&quot;
 printf &quot;----------------------------------\n&quot;
 printf &quot;Type:                       %s\n&quot;, self.type
-if self.splitters == &quot;none&quot;
+if self.splitters == &quot;none&quot;  # no CV performed
   if typename(self.n_neighbors) == &quot;scalar&quot;
     printf &quot;Number of neighbors:        %d\n&quot;, self.n_neighbors
   else
@@ -396,8 +442,10 @@ if self.splitters == &quot;none&quot;
   endif
 else
   printf &quot;Splitter:                   %s\n&quot;, self.splitters
+  printf &quot;No. of training sets        %d\n&quot;, self.n_training_sets
   printf &quot;Optimal no. of neighbors:   %d\n&quot;, self.optimal_k
-  printf &quot;Best mean score ('%s'):   %.4f\n&quot;, self.metric, self.optimal_score
+  printf &quot;Score name:                '%s'\n&quot;, self.metric
+  printf &quot;Best mean score:            %.4f\n&quot;, self.optimal_score
 endif
 printf &quot;Distance type:              %s\n&quot;, self.distance_type
 printf &quot;Standardize features:       %s\n&quot;, self.stdize_features ? &quot;Yes&quot; : &quot;No&quot;
@@ -437,15 +485,63 @@ printf &quot;----------------------------------\n&quot;
 */
 
 if inbundle(self, &quot;mean_scores&quot;) &amp;&amp; nelem(self.n_neighbors) &gt; 1
-  string metric = toupper(self.scoring_regression)
-  matrix ms = self.mean_scores
-  scalar pos = instrings(cnameget(ms), metric)
+  if self.type == &quot;regression&quot;
+    string metric = toupper(self.scoring_regression)
+  elif self.type == &quot;classification&quot;
+    string metric = toupper(self.scoring_classification)
+  endif
+  scalar pos = instrings(cnameget(self.mean_scores), metric)
+  matrix toplot = self.mean_scores[,pos] ~ vec(uniq(self.n_neighbors))
   string fname = exists(filename) ? filename : &quot;display&quot;
   string title = sprintf(&quot;Optimal score of %.4f for k = %d, cv: %s&quot;, self.optimal_score, self.optimal_k, self.splitters)
 
-  gnuplot pos --matrix=ms --with-lines --time-series --output=&quot;@fname&quot; {set grid; set xlabel &quot;k neighbors&quot; font &quot;,13&quot;; set ylabel &quot;mean of @metric&quot; font &quot;,13&quot;; set title &quot;@title&quot; font &quot;,13&quot;; set linetype 1 lw 2 lc rgb 'black'; }
+  gnuplot --matrix=toplot --with-lines --fit=none --output=&quot;@fname&quot; {set grid; set xlabel &quot;k neighbors&quot; font &quot;,13&quot;; set ylabel &quot;mean of @metric&quot; font &quot;,13&quot;; set title &quot;@title&quot; font &quot;,13&quot;; set linetype 1 lw 2; }
 else
-  print &quot;ERROR: Plot requires cross-validation results and/or multiple neighbors to evaluate.&quot;
+  print &quot;WARNING: Plot requires cross-validation results and/or multiple neighbors to evaluate.&quot;
+endif
+</code>
+</gretl-function>
+<gretl-function name="knn_plot_cvscores" type="void">
+ <params count="2">
+  <param name="self" type="bundle" const="true"/>
+  <param name="filename" type="string" optional="true" const="true"/>
+ </params>
+<code>/*
+* Plots the distribution of cross-validated scores for different values of k in k-nearest neighbors algorithm.
+*
+* Parameters:
+*    self: bundle
+*        The bundle returned by model fitting.
+*    filename: string (optional)
+*        The name of the output file. If not provided, the plot will be displayed.
+*
+* Notes:
+*    - The function requires cross-validation results in the bundle.
+*    - The plot will show a boxplot of the distribution of the scores across folds for each value of k.
+*    - The x-axis represents the number of neighbors (k), and the y-axis represents the score.
+*    - The plot will be displayed or saved to a file based on the provided filename.
+*/
+
+if inbundle(self, &quot;Scores&quot;)
+  if self.type == &quot;regression&quot;
+    string metric = toupper(self.scoring_regression)
+  elif self.type == &quot;classification&quot;
+    string metric = toupper(self.scoring_classification)
+  endif
+  scalar pos = instrings(cnameget(self.mean_scores), metric)
+  # Retrieve cv scores for each no. of neighbors
+  matrix scores = drill(self.Scores, null, pos)  # rows=folds, cols: n-neighbors
+  cnameset(scores, get_neighbors_label(nelem(self.n_neighbors)))
+  string fname = exists(filename) ? filename : &quot;display&quot;
+  string title = sprintf(&quot;Optimal k=%d using '%s' (nfolds = %d)&quot;, self.optimal_k, self.splitters, rows(scores))
+
+  if sum(meanc(scores, TRUE) .= 0)  # check for constants in which case the boxplot fails to be drawn
+    gnuplot --matrix=scores --time-series --output=&quot;@fname&quot; {set grid; set xlabel &quot;neighbors&quot; font &quot;,13&quot;; set ylabel &quot;Distribution of @metric across folds&quot; font &quot;,13&quot;; set title &quot;@title&quot; font &quot;,13&quot;; set linetype 1 lw 2; }
+  else
+    boxplot --matrix=scores --output=&quot;@fname&quot; {set grid; set xlabel &quot;neighbors&quot; font &quot;,13&quot;; set ylabel &quot;Distribution of @metric across folds&quot; font &quot;,13&quot;; set title &quot;@title&quot; font &quot;,13&quot;; set linetype 1 lw 2; }
+  endif
+else
+  print &quot;WARNING: Plot requires cross-validation results.&quot;
 endif
 </code>
 </gretl-function>
@@ -480,11 +576,11 @@ bundle self = defbundle()
 scalar self.stdize_features = TRUE
 string self.distance_type = &quot;euclidean&quot;
 string self.class_prediction = &quot;majority&quot;
-string self.splitters = &quot;none&quot;  # &quot;stratified_kfold&quot;, &quot;tscv&quot;, &quot;loo&quot;
+string self.splitters = &quot;none&quot;  # &quot;kfold&quot;, &quot;tscv&quot;, &quot;loo&quot;
 scalar self.kfold_nsplits = 5   # number of folds for kfold-splitters
 scalar self.win_size = 10   # number of folds for timeseries-splitters
 string self.scoring_regression = &quot;rmse&quot;
-string self.scoring_classification = &quot;FSC&quot;  # FSC=F1-Score
+string self.scoring_classification = &quot;PRC&quot;  # FSC=F1-Score
 scalar self.nobs = $nobs
 scalar self.sample_t1 = $t1
 scalar self.sample_t2 = $t2
@@ -581,7 +677,7 @@ strings clabels = cnameget(Scores[1]) # retrieve metric names
 matrix mean_score_by_neighbor = mshape(NA, npages, ncols)
 
 loop i=1..ncols
-  matrix mean_score_by_neighbor[,i] = meanc(drill(Scores, , i))'
+  matrix mean_score_by_neighbor[,i] = meanc(drill(Scores, null, i), TRUE)'
 endloop
 
 cnameset(mean_score_by_neighbor, clabels)
@@ -590,19 +686,18 @@ rnameset(mean_score_by_neighbor, get_neighbors_label(npages))
 return mean_score_by_neighbor
 </code>
 </gretl-function>
-<gretl-function name="knn_compute" type="void" private="1">
- <params count="4">
+<gretl-function name="knn_compute" type="matrix" private="1">
+ <params count="3">
+  <param name="self" type="bundle" const="true"/>
   <param name="target" type="matrix" const="true"/>
   <param name="features" type="matrix" const="true"/>
-  <param name="self" type="bundleref"/>
-  <param name="compute_yhat" type="bool" default="1" const="true"/>
  </params>
 <code>/*
 * This function computes the k-nearest neighbors (KNN) algorithm.
 *
 * Parameters:
 * - target: The matrix of target variables.
-* - features: The matrix of features.
+* - features: The matrix of features, eventually standardized
 * - self: A bundle containing additional parameters and variables.
 * - compute_yhat: A boolean indicating whether to compute the predicted values.
 *
@@ -615,22 +710,20 @@ return mean_score_by_neighbor
 * The computed values are stored in the self.yhat matrix if compute_yhat is set to TRUE.
 */
 
-matrix self.target = target
-matrix self.features = prepare_features(features, self.stdize_features)
-matrix distances = compute_distances(self.features, self.distance_type)
+matrix distances = compute_distances(features, self.distance_type)
 # Compute the indices for each observation which are the closest to it
-matrix indices_of_closest = indices_of_closest(distances, self.n_neighbors)
+matrix indices_of_closest = indices_of_closest(distances, self.n_neighbors, FALSE)
 
-if compute_yhat == TRUE
-  # Compute the predictions for the target using data on the closest neighbors
-  if self.type == &quot;regression&quot;
-    matrix self.yhat = compute_yhat_regression(target, indices_of_closest)
-  elif self.type == &quot;classification&quot;
-    matrix self.yhat = compute_yhat_classification(target, indices_of_closest, self.class_prediction)
-  else
-    errorif(TRUE, &quot;unknown estimation class&quot;)
-  endif
+# Compute the predictions for the target using data on the closest neighbors
+if self.type == &quot;regression&quot;
+  matrix yhat = compute_yhat_regression(target, indices_of_closest)
+elif self.type == &quot;classification&quot;
+  matrix yhat = compute_yhat_classification(target, indices_of_closest, self.class_prediction)
+else
+  errorif(TRUE, &quot;unknown estimation class&quot;)
 endif
+
+return yhat
 </code>
 </gretl-function>
 <gretl-function name="knnCV" type="void" private="1">
@@ -673,12 +766,12 @@ scalar DataCV.win_size = self.win_size
 string DataCV.cv_type = self.splitters
 # Retrive the training and validation data
 CvDataSplitter(&amp;DataCV)
-scalar n_trainsets = nelem(DataCV.X_train)
+scalar self.n_training_sets = nelem(DataCV.X_train)
 
 # Estimate the model for each training set
 matrix Scores = {}
 
-loop tset=1..n_trainsets
+loop tset=1..self.n_training_sets
   bundle model = _(stdize_features = self.stdize_features, type = self.type, class_prediction = self.class_prediction, n_neighbors = self.n_neighbors, distance_type = self.distance_type)
   matrix y_train = DataCV.X_train[tset][,2]  # 1st column refers to index
   matrix X_train = DataCV.X_train[tset][,3:]
@@ -688,13 +781,12 @@ loop tset=1..n_trainsets
   assert(rows(y_test) == rows(X_test))
 
   # set computing in-sample predictions to FALSE as not needed here
-  knn_compute(y_train, X_train, &amp;model, FALSE)
-  matrix forecast = knn_predict(model, X_test)  # outforecast using the validation set
+  model.features = prepare_features(X_train, self.stdize_features)
+  model.target = target
+  # predict using the validation set
+  matrix forecast = knn_predict(model, X_test)
   matrix Scores ~= knn_scores(y_test, forecast, model)
-
-  if tset == 1
-    strings metric_labels = rnameget(Scores)
-  endif
+  strings metric_labels = tset == 1 ? rnameget(Scores) : metric_labels
 endloop
 
 self.Scores = Scores'
@@ -703,9 +795,10 @@ cnameset(self.Scores, metric_labels)
 </code>
 </gretl-function>
 <gretl-function name="get_optimal_score_and_k" type="bundle" private="1">
- <params count="2">
+ <params count="3">
   <param name="mean_scores" type="matrix" const="true"/>
   <param name="metric" type="string" const="true"/>
+  <param name="type" type="string" const="true"/>
  </params>
 <code>/* Based on cross-validated mean scores, retrieve the optimal number of
 neighbors based on some metric. */
@@ -714,7 +807,13 @@ catch scalar position_criteria = instrings(cnameget(mean_scores), toupper(metric
 errorif($error, &quot;Unknown metric name passed.&quot;)
 
 bundle B = empty
-scalar B.optimal_k = iminc(mean_scores[,position_criteria], TRUE)
+if type == &quot;classification&quot;
+  matrix corrected_mean_scores = correct_class_metrics(mean_scores[,position_criteria], metric)
+else
+  matrix corrected_mean_scores = mean_scores[,position_criteria]
+endif
+
+scalar B.optimal_k = iminc(corrected_mean_scores, TRUE)
 scalar B.optimal_score = NA
 
 if !ok(B.optimal_k)
@@ -724,7 +823,6 @@ if !ok(B.optimal_k)
 endif
 
 scalar B.optimal_score = mean_scores[B.optimal_k, position_criteria]
-print B.optimal_score
 
 return B
 </code>
@@ -742,14 +840,6 @@ return B
 * return: The matrix of evaluation statistics, including false rate, hit rate, and Kuipers score.
 */
 
-/* TODO: Test first whether metrics are correctly computed
-bundle B = _(yup = actual, fcup = prediction)
-doKS(&amp;B)
-matrix fcstats = B.KSfalse | B.KShit | B.KSstat
-rnameset(fcstats, defarray(&quot;false-rate&quot;, &quot;hit-rate&quot;, &quot;Kuipers-score&quot;))
-*/
-
-# TODO: Results do not coincide. Check which function returns wrong values.
 matrix scores = scores2x2(actual ~ prediction, FALSE)
 
 return scores
@@ -935,9 +1025,10 @@ return yhat
 </code>
 </gretl-function>
 <gretl-function name="indices_of_closest" type="matrix" private="1">
- <params count="2">
+ <params count="3">
   <param name="distances" type="matrix" const="true"/>
   <param name="n_neighbors" type="int" const="true"/>
+  <param name="outofsample" type="bool" default="1" const="true"/>
  </params>
 <code>/*
 This function calculates the indices of the closest neighbors based on the given distances.
@@ -953,119 +1044,229 @@ Returns:
 testdata record (in columns). The rows equal the number of neighbors.
 */
 
-scalar N = rows(distances)
-matrix indices_of_closest = mshape(NA, n_neighbors, N)
+scalar n_testdata = rows(distances)
 matrix idx = seq(1, cols(distances))'
+matrix indices_of_closest = mshape(NA, n_neighbors, n_testdata)
 
 # TODO: Check whether this can be improved in terms of computation
 # TODO: In principle this may be parallelized but not in this version
 
-loop i = 1..N
-  matrix row = distances[i,]' ~ idx
-  # sort by distance in ascending order
-  matrix sorted = msortby(row, 1)[-i,]  # remove reference observation
+loop i = 1..n_testdata
+  matrix row = distances[i,]' ~ idx   # retrieve the i-th test observation
+  matrix sorted = msortby(row, 1)
+  if outofsample == FALSE
+    sorted = sorted[-i,]  # remove reference observation (distance to itself)
+  endif
+
   matrix indices_of_closest[,i] = sorted[1:n_neighbors, 2]
 endloop
 
 return indices_of_closest
 </code>
 </gretl-function>
+<gretl-function name="correct_class_metrics" type="matrix" private="1">
+ <params count="2">
+  <param name="Scores" type="matrix" const="true"/>
+  <param name="metric" type="string" const="true"/>
+ </params>
+<code>/* This function computes the correct classification metrics by adjusting the
+sign of the scores based on predefined criteria. It is designed to work within
+the context of classification tasks, where different metrics might need to be
+interpreted differently (e.g., a higher score might be better for some metrics
+but worse for others). */
+
+bundle Map = _(POD = &quot;negative&quot;, POFD = &quot;unchanged&quot;, HR = &quot;negative&quot;, FAR = &quot;unchanged&quot;, CSI = &quot;negative&quot;, OR = &quot;negative&quot;, BIAS = &quot;negative&quot;, TSS = &quot;negative&quot;, HSS = &quot;negative&quot;, ETS = &quot;unchanged&quot;, PRC = &quot;negative&quot;, FSC = &quot;negative&quot;, QPS = &quot;negative&quot;, LPS = &quot;negative&quot;)
+
+scalar pos = inbundle(Map, metric)
+errorif(!ok(pos), &quot;Unknown metric name passed.&quot;)
+
+matrix ret = Scores .* (Map[metric] == &quot;positive&quot; ? 1 : -1)
+
+return ret
+</code>
+</gretl-function>
+<gretl-function name="get_metric_name" type="string" private="1">
+ <params count="1">
+  <param name="self" type="bundle" const="true"/>
+ </params>
+<code>if self.type == &quot;classification&quot;
+  string metric = self.scoring_classification
+else
+  string metric = self.scoring_regression
+endif
+
+return metric
+</code>
+</gretl-function>
+<gretl-function name="check_metric_probclass" type="void" private="1">
+ <params count="3">
+  <param name="type" type="string" const="true"/>
+  <param name="metric" type="string" const="true"/>
+  <param name="class_prediction" type="string" const="true"/>
+ </params>
+<code>if type == &quot;classification&quot;
+  if metric == &quot;QPS&quot; &amp;&amp; class_prediction != &quot;probability&quot;
+    printf &quot;\nERROR: The metric '%s' is only supported for probability-based classification.\n&quot;, metric
+    errorif(TRUE, sprintf(&quot;Please set 'class_prediction' to 'probability' to use this metric.\n\n&quot;))
+  elif class_prediction == &quot;probability&quot; &amp;&amp; (metric != &quot;QPS&quot; &amp;&amp; metric != &quot;LPS&quot;)
+    errorif(TRUE, &quot;For binary classification, only 'QPS' and 'LPS' are supported. Please use another metric&quot;)
+  endif
+endif
+</code>
+</gretl-function>
+<gretl-function name="errorif_multiclass_prob" type="void" private="1">
+ <params count="3">
+  <param name="y" type="series" const="true"/>
+  <param name="class_prediction" type="string" const="true"/>
+  <param name="type" type="string" const="true"/>
+ </params>
+<code>errorif(type == &quot;classification&quot; &amp;&amp; nelem(values(y)) &gt; 2 &amp;&amp; class_prediction == &quot;probability&quot;, &quot;Probabilities are only supported for binary classification, yet.&quot;)
+</code>
+</gretl-function>
+<gretl-function name="errorif_classification_loo" type="void" private="1">
+ <params count="2">
+  <param name="type" type="string" const="true"/>
+  <param name="splitters" type="string" const="true"/>
+ </params>
+<code>errorif(splitters == &quot;loo&quot; &amp;&amp; type == &quot;classification&quot;, &quot;Leave-one-out CV (loo) not supportet for classification, yet. Please use 'kfold', instead.&quot;)
+</code>
+</gretl-function>
 <sample-script>
 clear
 set verbose off
 include knn.gfn
+set seed 1234
+
 /*
-open credscore.gdt --quiet
-
-# Select an example to run
-EXAMPLE = 2
-# Parameter
-scalar N_NEIGHBORS = 5  # no. of neighbors
-
-if EXAMPLE == 1  # regression
-    list x = Age MDR OwnRent
-    series y = Income
-
-elif EXAMPLE == 2  # classification with majority voting
-    list x = Age Income
-    series y = Acc
-    setinfo y --discrete
-
-elif EXAMPLE == 3  # classification with probability predictions
-    list x = Age Income
-    series y = Acc
-    setinfo y --discrete
-    bundle Params = _(class_prediction = &quot;probability&quot;,
-                      distance_type = &quot;manhatten&quot;)
-endif
-
-# Remove missing values and define training set
-smpl y x --no-missing --permanent
-genr index
-series trainset = (index &lt;= 50) ? TRUE : FALSE
-
-# Activate training set
-smpl trainset == TRUE --restrict
-
-# Euclidean distance (default)
-# ============================
-if exists(Params)
-    bundle Model = knn_fit(y, x, N_NEIGHBORS, Params)
-else
-    bundle Model = knn_fit(y, x, N_NEIGHBORS)
-endif
-
-knn_summary(Model)  # Print summary of estimation
-series yhat = Model.yhat
-series uhat = Model.uhat
-
-if EXAMPLE == 1
-    series diagonal = y
-    gnuplot yhat diagonal y --with-lines=diagonal --output=display \
-      {set yrange[0:10]; set xrange[0:10];}
-
-    freq uhat --normal --plot=display
-
-elif EXAMPLE == 2
-    if Model.class_prediction == &quot;majority&quot;
-        gnuplot Age Avgexp yhat --dummy --output=display --fit=none
-    endif
-endif
-
-# In-sample scores
-print &quot;In-sample scores&quot;
-print knn_scores(y, yhat, Model)
-
-# Activate testset and predict out-of-sample
-smpl trainset == FALSE --restrict --replace
-series prediction = knn_predict(Model, x)
-# Out-of-sample scores
-print &quot;Out-of-sample scores&quot;
-print knn_scores(y, prediction, Model)
-#print y prediction -o --range=:15
+include &quot;/home/artur/git/knn/src/knn.inp&quot; --force
+include CvDataSplitter.gfn
+include extra.gfn
+include FEP.gfn
 */
 
 
-#####################################
-### Regression using cross-validation
-# Run k-fold with 5 folds sampling
-#####################################
 open credscore.gdt --quiet
-# Set parameters
-matrix NEIGHBORS = seq(1,4)  # sequence of no. of neighbors to evaluate
-scalar KFOLD_NSPLITS = 5  # only relevant for splitters = &quot;kfold&quot;
-string SPLITTERS = &quot;kfold&quot;  # either &quot;kfold&quot;, &quot;loo&quot;
-string METRIC = &quot;mae&quot;   # metric to optimize
-bundle Params = _(splitters = SPLITTERS, kfold_nsplits = KFOLD_NSPLITS,
-                  scoring_regression = METRIC)
-# Select features and target
-list x = Age Selfempl OwnRent
-series y = Income
-# Fit the model
-bundle Model = knn_fit(y, x, NEIGHBORS, Params)
-print Model
-knn_summary(Model)
-knn_plot_score(Model)
+
+# Remove missing values
+smpl --no-missing --permanent
+# Define arbitrary training set
+genr index
+series trainset = (index &lt;= 50) ? TRUE : FALSE
+
+# Parameters
+N_NEIGHBORS = 3   # no. of neighbors (fixed)
+
+# Select an example to run
+EXAMPLE = 4
+
+
+if EXAMPLE == 1   # regression
+    list x = Age MDR OwnRent
+    series y = Income
+    smpl trainset == TRUE --restrict
+    bundle Model = knn_fit(y, x, N_NEIGHBORS)
+
+    knn_summary(Model)  # Print summary of estimation
+    series yhat = Model.yhat
+    series uhat = Model.uhat
+    print y yhat uhat --byobs --range=1:10
+
+    print &quot;In-sample scores&quot;
+    print knn_scores(y, yhat, Model)
+
+    # in-sample prediction
+    series prediction = knn_predict(Model, x)
+    summary y prediction --simple
+
+elif EXAMPLE == 2  # binary classification with majority voting
+    list x = Age Income
+    series y = Acc
+    setinfo y --discrete
+    bundle Model = knn_fit(y, x, N_NEIGHBORS)
+
+    knn_summary(Model)  # Print summary of estimation
+    series yhat = Model.yhat
+    series uhat = Model.uhat
+    print y yhat uhat --byobs --range=1:10
+    print &quot;In-sample scores&quot;
+    print knn_scores(y, yhat, Model)
+
+    # in-sample prediction
+    series prediction = knn_predict(Model, x)
+    summary y prediction --simple
+
+
+elif EXAMPLE == 3
+    #####################################
+    ### Regression using cross-validation for
+    ### computing the optimal number of neighbors
+    ### Run k-fold sampling with 5 folds
+    #####################################
+    list x = Age MDR OwnRent
+    series y = Income
+
+    # Set parameters
+    matrix NEIGHBORS = seq(1,4)  # sequence of no. of neighbors to evaluate
+    scalar KFOLD_NSPLITS = 5     # only relevant for splitters = &quot;kfold&quot;
+    string SPLITTERS = &quot;kfold&quot;   # either &quot;kfold&quot;, &quot;loo&quot;
+    string METRIC = &quot;mae&quot;        # metric to optimize, default: rmse
+    bundle Params = _(splitters = SPLITTERS,
+                      kfold_nsplits = KFOLD_NSPLITS,
+                      scoring_regression = METRIC)
+
+    # Set training set: just some random sample (not stratified!)
+    series trainset = randgen(i, 0, 1) &lt;= 0.5 ? TRUE : FALSE
+    smpl trainset == TRUE --restrict
+    bundle Model = knn_fit(y, x, NEIGHBORS, Params)
+    print Model
+    knn_summary(Model)
+    knn_plot_score(Model)
+    knn_plot_cvscores(Model)
+
+    # Activate testset and predict out-of-sample
+    smpl trainset == FALSE --restrict --replace
+    series prediction = knn_predict(Model, x)
+    # Out-of-sample scores
+    print &quot;Out-of-sample scores&quot;
+    print knn_scores(y, prediction, Model)
+    print y prediction -o --range=:15
+
+
+elif EXAMPLE == 4
+    #####################################
+    ### 3-class classification using cross-validation for
+    ### computing the optimal number of neighbors
+    ### Run k-fold sampling with 5 folds
+    #####################################
+    list x = MDR OwnRent Acc
+    # Construct target with three arbitrary classes
+    series y = 0
+    y = Age &gt;= 30 ? 1 : y
+    y = Age &gt;= 40 ? 2 : y
+    setinfo y --discrete  # tell gretl that's a categorical variable
+
+    # Set parameters
+    matrix NEIGHBORS = seq(1,4)  # sequence of no. of neighbors to evaluate
+    scalar KFOLD_NSPLITS = 5     # only relevant for splitters = &quot;kfold&quot;
+    string SPLITTERS = &quot;kfold&quot;   # either &quot;kfold&quot;, &quot;loo&quot;
+    string METRIC = &quot;PRC&quot;        # metric to optimize, default: rmse
+    bundle Params = _(splitters = SPLITTERS,
+                      kfold_nsplits = KFOLD_NSPLITS,
+                      scoring_regression = METRIC)
+
+    # Set training set: just some random sample (not stratified!)
+    series trainset = randgen(i, 0, 1) &lt;= 0.5 ? TRUE : FALSE
+    smpl trainset == TRUE --restrict
+    bundle Model = knn_fit(y, x, NEIGHBORS, Params)
+    print Model
+    knn_summary(Model)
+    knn_plot_cvscores(Model)
+
+    # Activate testset and predict out-of-sample
+    smpl trainset == FALSE --restrict --replace
+    series prediction = knn_predict(Model, x)
+    print y prediction -o --range=:15
+endif
 </sample-script>
 </gretl-function-package>
 </gretl-functions>
