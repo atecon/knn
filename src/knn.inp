@@ -92,8 +92,7 @@ function bundle knn_fit (const series y "Target",
     errorif_classification_loo(self.type, self.splitters)
     errorif_multiclass_prob(y, self.class_prediction, self.type)
 
-    series self.target = y
-    matrix my = {y}
+    matrix self.target = {y}
     matrix mX = {xlist}
     scalar self.n_features = cols(mX)
     scalar self.nobs_features = rows(mX)
@@ -123,11 +122,11 @@ function bundle knn_fit (const series y "Target",
 
         if self.splitters == "none"
             # Standardization is done using the whole dataset
-            matrix self.yhat[,nb] = knn_compute(self, my, self.features)
-            matrix self.uhat[,nb] = my - self.yhat[,nb]
+            matrix self.yhat[,nb] = knn_compute(self, self.target, self.features)
+            matrix self.uhat[,nb] = self.target - self.yhat[,nb]
 
             if self.type == "regression"
-                scalar self.rsq[nb] = get_rsq(my, self.yhat[,nb])
+                scalar self.rsq[nb] = get_rsq(self.target, self.yhat[,nb])
                 scalar self.ess[nb] = sst(self.uhat[,nb])
                 rlabel_rsq_ess[nb] = sprintf("k=%d", neighbor_values[nb])
             elif self.type == "classification"
@@ -136,7 +135,7 @@ function bundle knn_fit (const series y "Target",
         else
             #matrix self.features = mX
             bundle model = self
-            knnCV(my, mX, &model)
+            knnCV(self.target, mX, &model)
             self.Scores[nb] = model.Scores
             if nb == 1
                 self.n_training_sets = model.n_training_sets
@@ -567,6 +566,7 @@ function matrix knn_predict (const bundle self,
     else
         matrix target = self.target
     endif
+    assert(max(indices_of_closest) <= rows(target))
     if self.type == "regression"
         matrix prediction = compute_yhat_regression(target, indices_of_closest)
     else
@@ -767,20 +767,21 @@ function matrix target_means (const matrix target,
     *
     * target: The matrix containing the target variable values from the training data.
     * indices_of_closest: The matrix containing the indices of the closest
-      neighbors for each observation.
+      neighbors for each observation. Rows: the i-th neighbor, columns: the corresponding
+      index of the testdata record.
 
     * return: The matrix of mean values of the target variable for each observation.
     */
 
     scalar N = cols(indices_of_closest)
-    matrix yhat = mshape(NA, N, 1)
+    matrix ymeans = mshape(NA, N, 1)
 
     loop i=1..N
         matrix idx = indices_of_closest[,i]
-        matrix yhat[i] = mean(target[idx])
+        matrix ymeans[i] = mean(target[idx])
     endloop
 
-    return yhat
+    return ymeans
 end function
 
 
