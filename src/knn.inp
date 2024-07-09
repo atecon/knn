@@ -541,6 +541,8 @@ function matrix knn_predict (const bundle self,
     scalar ncols_X = cols(new_data)
     matrix new_data = prepare_features(new_data, self.stdize_features)
     matrix new_data |= self.features
+    # Predictions are made for a new instance (x) by searching through the entire training set for the K
+    # most similar instances (the neighbors) and summarizing the output variable for those K instances.
     matrix distances = compute_distances(new_data, self.distance_type)
     # Remove the initial nrows_X columns which are the distances to the test data
     # Keep only the initial nrows_X rows which are the distances for the nrows_X testdata records

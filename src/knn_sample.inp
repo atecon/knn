@@ -15,7 +15,7 @@ series trainset = (index <= 50) ? TRUE : FALSE
 N_NEIGHBORS = 3   # no. of neighbors (fixed)
 
 # Select an example to run
-EXAMPLE = 4
+EXAMPLE = 1
 
 
 if EXAMPLE == 1   # regression
@@ -35,6 +35,11 @@ if EXAMPLE == 1   # regression
     # in-sample prediction
     series prediction = knn_predict(Model, x)
     summary y prediction --simple
+
+    # out-of-sample prediction
+    smpl trainset == FALSE --restrict --replace
+    series fc = knn_predict(Model, x)
+    print y fc -o --range=:10
 
 elif EXAMPLE == 2  # binary classification with majority voting
     list x = Age Income
@@ -124,4 +129,5 @@ elif EXAMPLE == 4
     smpl trainset == FALSE --restrict --replace
     series prediction = knn_predict(Model, x)
     print y prediction -o --range=:15
+
 endif
