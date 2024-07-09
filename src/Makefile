@@ -9,4 +9,4 @@ install: $(PKG).gfn
 	cat $(PKG)_help.md | tee ../README.md
 
 clean:
-	#rm -f $(PKG).gfn
+	rm -f $(PKG).gfn
