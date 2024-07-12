@@ -1,7 +1,7 @@
 author = Artur Tarassow
 email = atecon@posteo.de
 version = 0.1
-date = 2024-06-20
+date = 2024-07-12
 description = KNN regression and classification estimator
 tags = C13 C52
 min-version = 2024a
