@@ -127,9 +127,8 @@ function bundle knn_fit (const series y "Target",
             if self.type == "regression"
                 scalar self.rsq[nb] = get_rsq(self.target, self.yhat[,nb])
                 scalar self.ess[nb] = sst(self.uhat[,nb])
-                rlabel_rsq_ess[nb] = sprintf("k=%d", neighbor_values[nb])
-            elif self.type == "classification"
-                # TODO: implement support for classification?
+            #elif self.type == "classification"
+                # TODO: implement metrics for classification? If so, which?
             endif
         else
             #matrix self.features = mX
@@ -149,11 +148,12 @@ function bundle knn_fit (const series y "Target",
 
     if inbundle(self, "rsq")
         cnameset(self.rsq, clabel_rsq)
-        rnameset(self.rsq, rlabel_rsq_ess)
+        print self.rsq
+        rnameset(self.rsq, get_labels(n_neighbor_values, "k"))
     endif
     if inbundle(self, "ess")
         cnameset(self.ess, clabel_ess)
-        rnameset(self.ess, rlabel_rsq_ess)
+        rnameset(self.ess, get_labels(n_neighbor_values, "k"))
     endif
 
     if inbundle(self, "Scores")
