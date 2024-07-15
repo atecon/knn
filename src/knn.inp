@@ -105,7 +105,6 @@ function bundle knn_fit (const series y "Target",
         if self.type == "regression"
             matrix self.ess = mshape(NA, n_neighbor_values, 1)
             matrix self.rsq = mshape(NA, n_neighbor_values, 1)
-            strings rlabel_rsq_ess = array(n_neighbor_values)
             string clabel_rsq = "R^2"
             string clabel_ess = "ess"
         endif
