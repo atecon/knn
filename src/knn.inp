@@ -69,7 +69,7 @@ function bundle knn_fit (const series y "Target",
     /* Function for computing KNN: run the setup and train the model. */
 
     list L = y xlist
-    errorif(sum(missing(L)), "Some  have missing values. Please drop these first.")
+    errorif(sum(missing(L)), "Some series have missing values. Please drop these first.")
     errorif($nobs <= n_neighbors, "Number of rows must exceed number of neighbors.")
     errorif(typename(n_neighbors) != "scalar" && typename(n_neighbors) != "matrix",
             "Parameter 'n_neighbors' must bei either of type scalar or matrix.")
@@ -148,7 +148,6 @@ function bundle knn_fit (const series y "Target",
 
     if inbundle(self, "rsq")
         cnameset(self.rsq, clabel_rsq)
-        print self.rsq
         rnameset(self.rsq, get_labels(n_neighbor_values, "k"))
     endif
     if inbundle(self, "ess")
@@ -477,16 +476,16 @@ function void knn_summary (const bundle self)
         printf "Best mean score:            %.4f\n", self.optimal_score
     endif
     printf "Distance type:              %s\n", self.distance_type
-    printf "Standardize features:       %s\n", self.stdize_features ? "Yes" : "No"
+    printf "Standardize features:       %s\n", self.stdize_features ? "yes" : "no"
     printf "Target variable:            %s\n", self.depvar
     printf "Feature variables:          %s\n", flatten(self.parnames, ", ")
     printf "Number of observations:     %d\n", self.nobs
-    printf "Sample period:              %d to %d\n", self.sample_t1, self.sample_t2
-    if inbundle(self, "rsq") && typename(self.rsq) == "scalar"
-        printf "R-squared:               %.4f\n", self.rsq
+    printf "Sample:                     %d to %d\n", self.sample_t1, self.sample_t2
+    if inbundle(self, "rsq") && nelem(self.rsq) == 1
+        printf "R-squared:                  %.4f\n", self.rsq
     endif
-    if inbundle(self, "ess") && typename(self.ess) == "scalar"
-        printf "Sum of squares:          %.4f\n", self.ess
+    if inbundle(self, "ess") && nelem(self.ess) == 1
+        printf "Sum of squares:             %.4f\n", self.ess
     endif
     printf "----------------------------------\n"
 end function
@@ -681,9 +680,8 @@ function matrix prepare_features (matrix features,
     */
 
     if stdize_features && rows(features) > 1
-        matrix sd_features = sdc(features)
         loop i=1..cols(features)
-            if sd_features[i] > 0
+            if !isconst(features[,i])
                 matrix features[,i] = stdize(features[,i], 0, TRUE)
             endif
         endloop
@@ -911,4 +909,50 @@ function void errorif_classification_loo (const string type,
                                           const string splitters)
     errorif(splitters == "loo" && type == "classification",
             "Leave-one-out CV (loo) not supportet for classification, yet. Please use 'kfold', instead.")
+end function
+
+
+function bundle knn_gui_control (series target "Dependent variable",
+                                 const list features "Feature variables",
+                                 const int n_neighbors[1:5:3] "No. of neighbors",
+                                 const int type [0:1:0] "Type" {"Regression", "Classification"},
+                                 const int distance_type[1:5:1] {"euclidean", "manhattan", "chebyshev", "hamming", "cosine"},
+                                 const bool stdize_features[TRUE] "Standardize features")
+    /* This function is used to control the GUI for the k-Nearest Neighbors algorithm. */
+
+    if type == 1
+        setinfo target --discrete
+    else
+        setinfo target --continuous
+    endif
+
+    list all = target features
+    scalar nold = $nobs
+    smpl all --no-missing
+    scalar ndelta = nold - $nobs
+    if ndelta > 0
+        printf "\nWARNING: %d observations were removed due to missing values.\n", ndelta
+    endif
+
+    bundle Params = empty
+    string Params.distance_type = map_dist_int_to_string(distance_type)
+    scalar Params.stdize_features = stdize_features
+
+    bundle Model = knn_fit(target, features, n_neighbors, Params)
+    knn_summary(Model)
+    series prediction = knn_predict(Model, features)
+
+    printf "\n*** In-sample metrics ***\n\n"
+    print knn_scores(target, prediction, Model)
+
+    series Model.yhat_series = Model.yhat
+    series Model.uhat_series = Model.uhat
+
+    return Model
+end function
+
+# Map distance_type integer to string
+function string map_dist_int_to_string (const int distance_type)
+    strings dist_types = defarray("euclidean", "manhattan", "chebyshev", "hamming", "cosine")
+    return dist_types[distance_type]
 end function
