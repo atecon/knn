@@ -18,6 +18,10 @@ The package provides a set of functions that allow you to fit a model, make pred
 Please report any issues or suggestions on the Gretl mailing list or GitHub page: https://github.com/atecon/knn .
 
 
+# GUI Interface
+The package provides a GUI interface to fit a KNN model, make predictions, and plot the scores. The GUI can be accessed from the Gretl menu under `Model` -> `Robust estimation` -> `KNN regression + classification`. **Note**: Currently, only a subset of functionalities are supported in the GUI.
+
+
 # Public Functions
 
 **knn_fit(train_data, train_labels, n_neighbors, opts[null])**
@@ -59,7 +63,7 @@ The `opts` bundle can contain the following options:
 
   + "HR": Hit rate
 
-  + "FAR": False alaram rate
+  + "FAR": False alarm rate
 
   + "CSI": Critical success index
 
@@ -98,6 +102,7 @@ The `opts` bundle can contain the following options:
 A fitted KNN model object stored in a `bundle`. The bundle includes the following elements:
 
 - `depvar`: *string*, The dependent variable used for fitting the model.
+- `ess`: *matrix*, The explained sum of squares for each number of neighbors evaluated (only for regression without cross-validation).
 - `features`: *matrix*, The features used for fitting the model; if `stdize_features` is set to `TRUE`, the features are standardized.
 - `mean_scores`: *matrix*, The mean scores achieved by the model on the validation data for each number of neighbors (only if cross-validation is performed). Rows represent the number of neighbors used, and columns represent the scoring metrics.
 - `n_training_sets`: *int*, The number of training sets used for cross-validation (only if cross-validation is performed).
@@ -105,6 +110,7 @@ A fitted KNN model object stored in a `bundle`. The bundle includes the followin
 - `optimal_k`: *int*, The optimal number of neighbors selected by the cross-validation procedure (only if cross-validation is performed).
 - `optimal_score`: *scalar*, The optimal score achieved by the model on the validation data (only if cross-validation is performed).
 - `parnames`: *string array*, The names of the features used for fitting the model.
+- `rsq`: *matrix*, The R-squared for each number of neighbors evaluated (only for regression without cross-validation).
 - `sample_t1`: *int*, The index of the first observation in the training set.
 - `sample_t2`: *int*, The index of the last observation in the training set.
 - `Scores`: *matrices*, Array of matrices containing the scores achieved by the model on the validation data. Each page refers to a different number of neighbors (as specified by `n_neighbors`) evaluated. Rows represent the k-fold splits, and columns represent the scoring metrics.
