@@ -908,7 +908,7 @@ function void errorif_multiclass_prob (const series y,
 end function
 
 function void errorif_classification_loo (const string type,
-                                            const string splitters)
+                                          const string splitters)
     errorif(splitters == "loo" && type == "classification",
             "Leave-one-out CV (loo) not supportet for classification, yet. Please use 'kfold', instead.")
 end function
