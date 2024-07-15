@@ -234,7 +234,7 @@ function void knn_plot_cvscores (const bundle self,
             string metric = toupper(self.scoring_classification)
         endif
         scalar pos = instrings(cnameget(self.mean_scores), metric)
-        # Retrieve cv scores for each no. of neighbors
+        # Retrieve cv scores for each no. of neighbors; "drill()" is from extra pkg.
         matrix scores = drill(self.Scores, null, pos)  # rows=folds, cols: n-neighbors
         cnameset(scores, get_labels(nelem(self.n_neighbors), "k"))
         string fname = exists(filename) ? filename : "display"
@@ -305,6 +305,7 @@ function matrix get_scores_by_neighbor (const matrices Scores)
     matrix mean_score_by_neighbor = mshape(NA, npages, ncols)
 
     loop i=1..ncols
+        # drill() is from extra pkg.
         matrix mean_score_by_neighbor[,i] = meanc(drill(Scores, null, i), TRUE)'
     endloop
 
@@ -328,7 +329,7 @@ function matrix knn_compute (const bundle self,
     * - compute_yhat: A boolean indicating whether to compute the predicted values.
     *
     * Returns:
-    * This function does not return any value.
+    * Matrix with fitted values (insample prediction).
     *
     * Description:
     * The function computes the KNN algorithm by finding the k nearest neighbors for each observation in the features matrix.
@@ -388,8 +389,8 @@ function void knnCV (const matrix target, const matrix features, bundle *self)
     scalar DataCV.n_folds = self.kfold_nsplits
     scalar DataCV.win_size = self.win_size
     string DataCV.cv_type = self.splitters
-    # Retrive the training and validation data
-    CvDataSplitter(&DataCV)
+    # Retrieve the training and validation data
+    CvDataSplitter(&DataCV)  # CvDataSplitter() is from "CvDataSplitter" pkg.
     scalar self.n_training_sets = nelem(DataCV.X_train)
 
     # Estimate the model for each training set
@@ -628,7 +629,7 @@ function matrix fcstats_majority (const matrix actual,
     * return: The matrix of evaluation statistics, including false rate, hit rate, and Kuipers score.
     */
 
-    matrix scores = scores2x2(actual ~ prediction, FALSE)
+    matrix scores = scores2x2(actual ~ prediction, FALSE) # scores2x2() is from extra pkg.
 
     return scores
 end function
