@@ -36,10 +36,10 @@ if EXAMPLE == 1   # regression
     series prediction = knn_predict(Model, x)
     summary y prediction --simple
 
-    # out-of-sample prediction
+    # out--byobsf-sample prediction
     smpl trainset == FALSE --restrict --replace
     series fc = knn_predict(Model, x)
-    print y fc -o --range=:10
+    print y fc --byobs --range=:10
 
 elif EXAMPLE == 2  # binary classification with majority voting
     list x = Age Income
@@ -86,13 +86,13 @@ elif EXAMPLE == 3
     knn_plot_score(Model)
     knn_plot_cvscores(Model)
 
-    # Activate testset and predict out-of-sample
+    # Activate testset and predict out--byobsf-sample
     smpl trainset == FALSE --restrict --replace
     series prediction = knn_predict(Model, x)
-    # Out-of-sample scores
-    print "Out-of-sample scores"
+    # Out--byobsf-sample scores
+    print "Out--byobsf-sample scores"
     print knn_scores(y, prediction, Model)
-    print y prediction -o --range=:15
+    print y prediction --byobs --range=:15
 
 
 elif EXAMPLE == 4
@@ -125,9 +125,9 @@ elif EXAMPLE == 4
     knn_summary(Model)
     knn_plot_cvscores(Model)
 
-    # Activate testset and predict out-of-sample
+    # Activate testset and predict out--byobsf-sample
     smpl trainset == FALSE --restrict --replace
     series prediction = knn_predict(Model, x)
-    print y prediction -o --range=:15
+    print y prediction --byobs --range=:15
 
 endif
