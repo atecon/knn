@@ -237,7 +237,7 @@ function void knn_plot_cvscores (const bundle self,
         scalar pos = instrings(cnameget(self.mean_scores), metric)
         # Retrieve cv scores for each no. of neighbors
         matrix scores = drill(self.Scores, null, pos)  # rows=folds, cols: n-neighbors
-        cnameset(scores, get_neighbors_label(nelem(self.n_neighbors)))
+        cnameset(scores, get_labels(nelem(self.n_neighbors), "k"))
         string fname = exists(filename) ? filename : "display"
         string title = sprintf("Optimal k=%d using '%s' (nfolds = %d)",
                                self.optimal_k, self.splitters, rows(scores))
@@ -262,41 +262,25 @@ function void knn_plot_cvscores (const bundle self,
 end function
 
 
-function strings get_folds_label (const int nfolds)
+
+function strings get_labels (const int niter,
+                             const string prefix)
     /*
-    * Generates an array of strings representing the labels for each fold in a cross-validation process.
+    * Function: get_labels
+    * ---------------------
+    * Generates an array of strings with labels based on the given prefix and number of iterations.
     *
-    * Parameters:
-    *   nfolds - The number of folds in the cross-validation process.
+    * niter: The number of iterations.
+    * prefix: The prefix to be used in the labels.
     *
     * Returns:
-    *   An array of strings, where each string represents the label for a fold.
+    *   An array of strings with labels in the format "prefix=iteration_number".
     */
 
-    strings S = array(nfolds)
-    loop i=1..nfolds
-        S[i] = sprintf("fold=%d", i)
-    endloop
+    strings S = array(niter)
 
-    return S
-end function
-
-
-
-function strings get_neighbors_label (const int n_neighbors)
-    /*
-    * This function generates an array of strings representing the labels for the nearest neighbors.
-    *
-    * Parameters:
-    *   - n_neighbors: The number of nearest neighbors.
-    *
-    * Returns:
-    *   - An array of strings representing the labels for the nearest neighbors.
-    */
-
-    strings S = array(n_neighbors)
-    loop i=1..n_neighbors
-        S[i] = sprintf("k=%d", i)
+    loop i=1..niter
+        S[i] = sprintf("%s=%d", prefix, i)
     endloop
 
     return S
@@ -326,7 +310,7 @@ function matrix get_scores_by_neighbor (const matrices Scores)
     endloop
 
     cnameset(mean_score_by_neighbor, clabels)
-    rnameset(mean_score_by_neighbor, get_neighbors_label(npages))
+    rnameset(mean_score_by_neighbor, get_labels(npages, "k"))
 
     return mean_score_by_neighbor
 end function
@@ -399,7 +383,7 @@ function void knnCV (const matrix target, const matrix features, bundle *self)
     */
 
     # Preparations for CvDataSplitter
-    bundle DataCV = null
+    bundle DataCV = empty
     matrix DataCV.X = target ~ features
     matrix DataCV.index = seq(1, rows(DataCV.X))'
     scalar DataCV.n_folds = self.kfold_nsplits
@@ -435,7 +419,7 @@ function void knnCV (const matrix target, const matrix features, bundle *self)
     endloop
 
     self.Scores = Scores'
-    rnameset(self.Scores, get_folds_label(tset))
+    rnameset(self.Scores, get_labels(tset, "folds"))
     cnameset(self.Scores, metric_labels)
 end function
 
